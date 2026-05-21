@@ -1,6 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize production environment nodes (Fallbacks prevent build breaks)
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co';
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 interface Networker {
   id: string;
@@ -10,99 +16,107 @@ interface Networker {
   domain: string;
   intent: string;
   ring_color: string;
-  timestamp: string;
-  qr_handshake_completed: boolean;
-  contact_cleared: boolean;
-  shared_channels: { phone: boolean; linkedin: boolean };
-  email?: string;
-  phone?: string;
-  linkedin_url?: string;
   handshake_status: 'none' | 'sent' | 'received' | 'connected';
 }
 
 export default function OreetiSovereignEngine() {
   const [activeTab, setActiveTab] = useState<'room' | 'vault' | 'presence'>('room');
   const [isVisible, setIsVisible] = useState(false);
-  const [systemStatus, setSystemStatus] = useState('Sovereign Matrix Initialized');
-  
-  const [profile] = useState({
-    name: 'Michy',
-    title: 'Principal Architecture Lead',
-    domain: 'Digital Infrastructure & Spatial Design'
-  });
-  
+  const [systemStatus, setSystemStatus] = useState('Sovereign Matrix Node Ready');
   const [currentIntent, setCurrentUrlIntent] = useState('');
   const [sessionAnchor] = useState('ROOM: NAIROBI_GARAGE');
   const [showIntentModal, setShowIntentModal] = useState(false);
 
-  const [roomUsers, setRoomUsers] = useState<Networker[]>([
-    { 
-      id: 'node_01', 
-      name: 'Alex', 
-      full_name: 'Alex Kiprop',
-      title: 'Design Director', 
-      domain: 'Modular Structural Blueprints', 
-      intent: 'Sourcing premium 40ft container engineering schematics', 
-      ring_color: '#E6A15C', 
-      timestamp: new Date().toISOString(), 
-      qr_handshake_completed: false,
-      contact_cleared: false,
-      shared_channels: { phone: false, linkedin: false },
-      email: 'alex@modularmatrix.io',
-      phone: '+254700000000',
-      linkedin_url: 'linkedin.com/in/alex-modular',
-      handshake_status: 'none'
-    }
-  ]);
-
+  // Dynamic state populated directly by global cluster feeds
+  const [roomUsers, setRoomUsers] = useState<Networker[]>([]);
   const [vaultUsers, setVaultUsers] = useState<Networker[]>([]);
-  const [vaultNotes, setVaultNotes] = useState<Record<string, string>>({});
-  const [shareSelection, setShareSelection] = useState<Record<string, { phone: boolean; linkedin: boolean }>>({});
+  
+  const [profile, setProfile] = useState({
+    id: 'my-unique-node-id', // Populated via real auth layer in production
+    name: 'Michy',
+    title: 'Principal Architecture Lead',
+    domain: 'Digital Infrastructure & Spatial Design'
+  });
+
+  // Real-Time High-Concurrency Synchronization Engine
+  useEffect(() => {
+    if (!isVisible) {
+      setRoomUsers([]);
+      return;
+    }
+
+    // Fetch snapshot of active broadcast nodes inside this sector code
+    const fetchActiveNodes = async () => {
+      const { data, error } = await supabase
+        .from('active_presence_nodes')
+        .select('*')
+        .eq('room_anchor', sessionAnchor)
+        .not('id', 'eq', profile.id); // Filter out self
+
+      if (!error && data) setRoomUsers(data);
+    };
+
+    fetchActiveNodes();
+
+    // Subscribe to live multi-user mutations via WebSockets channel
+    const realTimeChannel = supabase
+      .channel(`room_evolution_${sessionAnchor}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'active_presence_nodes' }, () => {
+        fetchActiveNodes();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(realTimeChannel);
+    };
+  }, [isVisible, sessionAnchor, profile.id]);
 
   const handleVisibilityToggle = () => {
     if (!isVisible) {
       setShowIntentModal(true);
     } else {
-      setIsVisible(false);
-      setSystemStatus('Node Offline. Discovery Locked.');
+      executeNodeTeardown();
     }
   };
 
-  const confirmVisibility = () => {
+  const confirmVisibility = async () => {
     if (!currentIntent.trim()) return;
     setShowIntentModal(false);
-    setIsVisible(true);
-    setSystemStatus(`Broadcasting restricted matrix to ${sessionAnchor}`);
+
+    // Write real state to central database node
+    const { error } = await supabase.from('active_presence_nodes').upsert({
+      id: profile.id,
+      name: profile.name,
+      title: profile.title,
+      domain: profile.domain,
+      intent: currentIntent,
+      room_anchor: sessionAnchor,
+      last_seen: new Date().toISOString()
+    });
+
+    if (error) {
+      setSystemStatus('Engine Broadcast Failed: Node Rejected.');
+    } else {
+      setIsVisible(true);
+      setSystemStatus(`Node broadcasting to cluster: ${sessionAnchor}`);
+    }
   };
 
-  const initiateHandshake = (id: string) => {
-    setRoomUsers(prev => prev.map(u => u.id === id ? { ...u, handshake_status: 'sent' } : u));
-    setSystemStatus('Handshake broadcasted securely into the space.');
-    
-    setTimeout(() => {
-      setRoomUsers(prev => prev.map(u => u.id === id ? { ...u, handshake_status: 'received' } : u));
-      setSystemStatus('Incoming Handshake Signal Detected');
-    }, 2500);
+  const executeNodeTeardown = async () => {
+    setIsVisible(false);
+    await supabase.from('active_presence_nodes').delete().eq('id', profile.id);
+    setSystemStatus('Node Offline. Spatial Shunt Engaged.');
   };
 
-  const acceptHandshake = (id: string) => {
-    const targetUser = roomUsers.find(u => u.id === id);
-    if (!targetUser) return;
+  const initiateHandshake = async (targetId: string) => {
+    setSystemStatus('Securing handshake transactional pathway...');
+    const { error } = await supabase.from('handshake_transactions').insert({
+      sender_id: profile.id,
+      receiver_id: targetId,
+      status: 'sent'
+    });
 
-    const connectedUser: Networker = {
-      ...targetUser,
-      handshake_status: 'connected'
-    };
-
-    setVaultUsers(prev => [...prev, connectedUser]);
-    setRoomUsers(prev => prev.filter(u => u.id !== id));
-    setActiveTab('vault');
-    setSystemStatus(`Connection Locked with ${targetUser.name}. Full Profile Unmasked.`);
-  };
-
-  const declineHandshake = (id: string) => {
-    setRoomUsers(prev => prev.map(u => u.id === id ? { ...u, handshake_status: 'none' } : u));
-    setSystemStatus('Handshake cleared silently.');
+    if (!error) setSystemStatus('Handshake pipeline bound securely upstream.');
   };
 
   return (
@@ -111,7 +125,7 @@ export default function OreetiSovereignEngine() {
       fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box'
     }}>
       
-      {/* UPPER AREA: Scanning Canvas Viewport */}
+      {/* UPPER AREA: Active Stream Viewport Canvas */}
       <div style={{ flex: 1, padding: '24px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         
         {activeTab === 'room' && (
@@ -120,7 +134,7 @@ export default function OreetiSovereignEngine() {
               <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase' }}>
                 {sessionAnchor}
               </div>
-              <div style={{ fontSize: '11px', color: '#4E3C36', marginTop: '2px' }}>Proximity Matrix Scan Feed</div>
+              <div style={{ fontSize: '11px', color: '#4E3C36', marginTop: '2px' }}>Cluster Node Stream Feed</div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -136,7 +150,7 @@ export default function OreetiSovereignEngine() {
                       {user.name} <span style={{ fontSize: '12px', color: '#8A7366', fontWeight: '300', marginLeft: '4px' }}>— {user.title}</span>
                     </div>
                     <div style={{ fontSize: '11px', color: '#E6A15C', marginTop: '6px', fontStyle: 'italic', lineHeight: '1.4' }}>
-                      "Intent: {user.intent}"
+                      "{user.intent}"
                     </div>
                   </div>
 
@@ -145,25 +159,14 @@ export default function OreetiSovereignEngine() {
                       INITIATE HANDSHAKE
                     </div>
                   )}
-
-                  {user.handshake_status === 'sent' && (
-                    <div style={{ alignSelf: 'flex-start', fontSize: '10px', color: '#6E5950', padding: '6px 0', letterSpacing: '0.5px' }}>
-                      PINGING MATRIX NODE...
-                    </div>
-                  )}
-
-                  {user.handshake_status === 'received' && (
-                    <div style={{ display: 'flex', gap: '8px', background: 'rgba(230,161,92,0.03)', padding: '10px', borderRadius: '12px', border: '1px solid rgba(230,161,92,0.1)' }}>
-                      <div onClick={() => acceptHandshake(user.id)} style={{ flex: 1, backgroundColor: '#E6A15C', color: '#140D0C', padding: '8px', borderRadius: '8px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', textAlign: 'center' }}>
-                        ACCEPT
-                      </div>
-                      <div onClick={() => declineHandshake(user.id)} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', color: '#A68F81', padding: '8px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', textAlign: 'center' }}>
-                        IGNORE
-                      </div>
-                    </div>
-                  )}
                 </div>
               ))}
+
+              {roomUsers.length === 0 && (
+                <div style={{ padding: '60px 0', textAlign: 'center', color: '#4E3C36', fontSize: '12px', fontStyle: 'italic' }}>
+                  {isVisible ? 'Listening for concurrent nodes...' : 'Turn on Broadcast Mode to populate the local feed matrix.'}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -172,7 +175,7 @@ export default function OreetiSovereignEngine() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
               <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase' }}>Relationship Vault</div>
-              <div style={{ fontSize: '11px', color: '#4E3C36', marginTop: '2px' }}>Fully Unmasked Secure Connections</div>
+              <div style={{ fontSize: '11px', color: '#4E3C36', marginTop: '2px' }}>Fully Unmasked Node Access</div>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -181,9 +184,6 @@ export default function OreetiSovereignEngine() {
                   <div>
                     <div style={{ fontSize: '16px', fontWeight: '500', color: '#FDFBF7' }}>{user.full_name}</div>
                     <div style={{ fontSize: '12px', color: '#D9C3B0', marginTop: '2px' }}>{user.title} — <span style={{ color: '#A68F81' }}>{user.domain}</span></div>
-                  </div>
-                  <div style={{ marginTop: '12px' }}>
-                    <textarea value={vaultNotes[user.id] || ''} placeholder="Write private notes..." style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.04)', borderRadius: '10px', color: '#D9C3B0', padding: '8px 10px', fontSize: '11px', resize: 'none', height: '44px', outline: 'none' }} readOnly />
                   </div>
                 </div>
               ))}
@@ -195,15 +195,10 @@ export default function OreetiSovereignEngine() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase' }}>Identity Matrix</div>
             
-            {/* NEW MOON CORONA CARD AESTHETIC */}
             <div style={{ 
-              width: '100%', 
-              backgroundColor: 'rgba(10, 6, 5, 0.6)', 
-              borderRadius: '24px', 
-              padding: '24px', 
+              width: '100%', backgroundColor: 'rgba(10, 6, 5, 0.6)', borderRadius: '24px', padding: '24px', 
               border: '1px solid rgba(245, 230, 211, 0.025)',
-              boxShadow: '0 0 20px 1px rgba(245, 230, 211, 0.015), inset 0 0 12px rgba(245, 230, 211, 0.01)',
-              position: 'relative'
+              boxShadow: '0 0 20px 1px rgba(245, 230, 211, 0.015), inset 0 0 12px rgba(245, 230, 211, 0.01)'
             }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div><div style={{ fontSize: '8px', color: '#5E4A40', letterSpacing: '1.5px', textTransform: 'uppercase' }}>IDENTITY HANDLE</div><div style={{ fontSize: '20px', fontWeight: '300', color: '#F5E6D3' }}>{profile.name}</div></div>
@@ -216,14 +211,10 @@ export default function OreetiSovereignEngine() {
 
       </div>
 
-      {/* LOWER 40% CONTROL HUB - FULL ERGONOMIC VERTICAL RE-STACK */}
+      {/* LOWER 40% CONTROL HUB - PRODUCTION ALIGNED */}
       <div style={{ 
         background: 'linear-gradient(to top, #0A0605 85%, rgba(10, 6, 5, 0))', 
-        padding: '24px', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        gap: '20px',
-        boxSizing: 'border-box' 
+        padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxSizing: 'border-box' 
       }}>
         
         {showIntentModal && (
@@ -234,20 +225,13 @@ export default function OreetiSovereignEngine() {
           </div>
         )}
 
-        {/* Level 1: System Signal Logs Readout */}
         <div style={{ textAlign: 'center', fontSize: '9px', color: '#5E4A40', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
           {systemStatus}
         </div>
 
-        {/* Level 2: Visible Broadcast Toggle Control - TYPO RESOLVED HERE */}
         <div style={{ 
-          padding: '14px 18px', 
-          borderRadius: '16px', 
-          backgroundColor: 'rgba(20, 13, 12, 0.3)', 
-          border: '1px solid rgba(245, 230, 211, 0.04)', 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center'
+          padding: '14px 18px', borderRadius: '16px', backgroundColor: 'rgba(20, 13, 12, 0.3)', 
+          border: '1px solid rgba(245, 230, 211, 0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
         }}>
           <div>
             <div style={{ fontSize: '12px', fontWeight: '500', color: '#F5E6D3', letterSpacing: '0.5px' }}>Visible Broadcast Mode</div>
@@ -258,16 +242,9 @@ export default function OreetiSovereignEngine() {
           </div>
         </div>
 
-        {/* Level 3: Clean Navigation Suite Stacked Immediately at the Base Edge */}
         <div style={{ 
-          height: '56px', 
-          backgroundColor: 'rgba(20, 13, 12, 0.85)', 
-          borderRadius: '16px', 
-          border: '1px solid rgba(245, 230, 211, 0.04)', 
-          display: 'flex', 
-          justifyContent: 'space-around', 
-          alignItems: 'center', 
-          backdropFilter: 'blur(20px)' 
+          height: '56px', backgroundColor: 'rgba(20, 13, 12, 0.85)', borderRadius: '16px', 
+          border: '1px solid rgba(245, 230, 211, 0.04)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', backdropFilter: 'blur(20px)' 
         }}>
           <div onClick={() => setActiveTab('room')} style={{ fontSize: '10px', letterSpacing: '1.5px', fontWeight: '500', color: activeTab === 'room' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>THE ROOM</div>
           <div onClick={() => setActiveTab('vault')} style={{ fontSize: '10px', letterSpacing: '1.5px', fontWeight: '500', color: activeTab === 'vault' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>THE VAULT</div>
