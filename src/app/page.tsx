@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 interface Networker {
   id: string;
   name: string;
-  full_name: string; // Restricted to single name when broadcasting
+  full_name: string;
   title: string;
   domain: string;
   intent: string;
@@ -32,11 +32,10 @@ export default function OreetiSovereignEngine() {
   });
   
   const [currentIntent, setCurrentUrlIntent] = useState('');
-  const [sessionAnchor, setSessionAnchor] = useState('ROOM: NAIROBI_GARAGE'); // Hardcoded for simple MVP testing
+  const [sessionAnchor, setSessionAnchor] = useState('ROOM: NAIROBI_GARAGE');
   const [customInputTag, setCustomInputTag] = useState('');
   const [showIntentModal, setShowIntentModal] = useState(false);
 
-  // High-fidelity node simulation array
   const [roomUsers, setRoomUsers] = useState<Networker[]>([
     { 
       id: 'node_01', 
@@ -53,7 +52,7 @@ export default function OreetiSovereignEngine() {
       email: 'alex@modularmatrix.io',
       phone: '+254700000000',
       linkedin_url: 'linkedin.com/in/alex-modular',
-      handshake_status: 'none' // State tracking loop
+      handshake_status: 'none'
     }
   ]);
 
@@ -81,12 +80,10 @@ export default function OreetiSovereignEngine() {
     setSystemStatus();
   };
 
-  // Handshake Action Triggers
   const initiateHandshake = (id: string) => {
     setRoomUsers(prev => prev.map(u => u.id === id ? { ...u, handshake_status: 'sent' } : u));
     setSystemStatus('Handshake broadcasted securely into the space.');
     
-    // Simulate target user receiving the handshake and sending it back for testing purposes
     setTimeout(() => {
       setRoomUsers(prev => prev.map(u => u.id === id ? { ...u, handshake_status: 'received' } : u));
       setSystemStatus('Incoming Handshake Signal Detected');
@@ -103,8 +100,8 @@ export default function OreetiSovereignEngine() {
     };
 
     setVaultUsers(prev => [...prev, connectedUser]);
-    setRoomUsers(prev => prev.filter(u => u.id !== id)); // Remove from scanning canvas
-    setActiveTab('vault'); // Smooth view swipe to the archive matrix
+    setRoomUsers(prev => prev.filter(u => u.id !== id));
+    setActiveTab('vault');
     setSystemStatus();
   };
 
@@ -137,7 +134,7 @@ export default function OreetiSovereignEngine() {
       {/* UPPER AREA: Interaction Workspace Screen */}
       <div style={{ flex: 1, padding: '24px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         
-        {/* TAB 1: THE ROOM (Masked Limited Info State) */}
+        {/* TAB 1: THE ROOM */}
         {activeTab === 'room' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1 }}>
             <div>
@@ -158,7 +155,6 @@ export default function OreetiSovereignEngine() {
                     <div style={{ fontSize: '15px', fontWeight: '500', color: '#F5E6D3' }}>
                       {user.name} <span style={{ fontSize: '12px', color: '#A68F81', fontWeight: '300', marginLeft: '4px' }}>— {user.title}</span>
                     </div>
-                    {/* Domain or contact channels are completely hidden here */}
                     <div style={{ fontSize: '11px', color: '#E6A15C', marginTop: '4px', fontStyle: 'italic', lineHeight: '1.4' }}>
                       "Intent: {user.intent}"
                     </div>
@@ -179,10 +175,10 @@ export default function OreetiSovereignEngine() {
 
                   {user.handshake_status === 'received' && (
                     <div style={{ display: 'flex', gap: '8px', background: 'rgba(230,161,92,0.05)', padding: '10px', borderRadius: '10px', border: '1px solid rgba(230,161,92,0.15)' }}>
-                      <div onClick={() => acceptHandshake(user.id)} style={{ flex: 1, textCenter: 'center', backgroundColor: '#E6A15C', color: '#140D0C', padding: '6px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', textAlign: 'center' }}>
+                      <div onClick={() => acceptHandshake(user.id)} style={{ flex: 1, backgroundColor: '#E6A15C', color: '#140D0C', padding: '6px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', textAlign: 'center' }}>
                         ACCEPT
                       </div>
-                      <div onClick={() => declineHandshake(user.id)} style={{ flex: 1, textCenter: 'center', backgroundColor: 'rgba(255,255,255,0.05)', color: '#A68F81', padding: '6px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', textAlign: 'center' }}>
+                      <div onClick={() => declineHandshake(user.id)} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', color: '#A68F81', padding: '6px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', textAlign: 'center' }}>
                         IGNORE
                       </div>
                     </div>
@@ -199,7 +195,7 @@ export default function OreetiSovereignEngine() {
           </div>
         )}
 
-        {/* TAB 2: PRIVACY RELATIONSHIP VAULT (Full Identity Unmasked State) */}
+        {/* TAB 2: PRIVACY RELATIONSHIP VAULT */}
         {activeTab === 'vault' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
@@ -212,14 +208,13 @@ export default function OreetiSovereignEngine() {
                 <div key={user.id} style={{ backgroundColor: 'rgba(38, 25, 22, 0.3)', borderRadius: '18px', padding: '16px', border:  }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      {/* Full Name and domain display unmasks safely inside the Vault */}
                       <div style={{ fontSize: '16px', fontWeight: '500', color: '#FDFBF7' }}>{user.full_name}</div>
                       <div style={{ fontSize: '12px', color: '#D9C3B0', marginTop: '2px' }}>{user.title} — <span style={{ color: '#A68F81' }}>{user.domain}</span></div>
                     </div>
                   </div>
                   
                   <div style={{ marginTop: '10px' }}>
-                    <textarea value={vaultNotes[user.id] || ''} onChange={(e) => setVaultNotes({...vaultNotes, [user.id]: e.target.value})} placeholder="Write down private details or booth markers to remember this person..." style={{ width: '100%', background: 'rgba(20, 13, 12, 0.4)', border: '1px solid rgba(245, 230, 211, 0.04)', borderRadius: '10px', color: '#D9C3B0', padding: '8px 10px', fontSize: '11px', resize: 'none', height: '44px', outline: 'none', fontFamily: 'inherit' }} />
+                    <textarea value={vaultNotes[user.id] || ''} onChange={(e) => setVaultNotes({...vaultNotes, [user.id]: e.target.value})} placeholder="Write down private details or booth markers..." style={{ width: '100%', background: 'rgba(20, 13, 12, 0.4)', border: '1px solid rgba(245, 230, 211, 0.04)', borderRadius: '10px', color: '#D9C3B0', padding: '8px 10px', fontSize: '11px', resize: 'none', height: '44px', outline: 'none', fontFamily: 'inherit' }} />
                   </div>
 
                   {user.contact_cleared ? (
@@ -263,7 +258,7 @@ export default function OreetiSovereignEngine() {
 
       </div>
 
-      {/* LOWER 40% CONTROL HUB NAVIGATION SUITE */}
+      {/* LOWER 40% CONTROL HUB */}
       <div style={{ height: '38%', background: 'linear-gradient(to top, #0E0908 90%, rgba(20, 13, 12, 0))', padding: '0 24px 24px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', boxSizing: 'border-box' }}>
         
         {showIntentModal && (
@@ -274,7 +269,6 @@ export default function OreetiSovereignEngine() {
           </div>
         )}
 
-        {/* Global Visibility Anchor */}
         <div style={{ padding: '12px 16px', borderRadius: '16px', backgroundColor: 'rgba(38,25,22,0.6)', border: '1px solid rgba(245, 230, 211, 0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
             <div style={{ fontSize: '12px', fontWeight: '500', color: '#F5E6D3' }}>Visible Broadcast Mode</div>
@@ -289,7 +283,6 @@ export default function OreetiSovereignEngine() {
           {systemStatus}
         </div>
 
-        {/* Dynamic Nav System */}
         <div style={{ height: '56px', backgroundColor: 'rgba(28, 18, 17, 0.9)', borderRadius: '16px', border: '1px solid rgba(245, 230, 211, 0.08)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', backdropFilter: 'blur(10px)' }}>
           <div onClick={() => setActiveTab('room')} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'room' ? '#F5E6D3' : '#6E5950', cursor: 'pointer', padding: '12px' }}>THE ROOM</div>
           <div onClick={() => setActiveTab('vault')} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'vault' ? '#F5E6D3' : '#6E5950', cursor: 'pointer', padding: '12px' }}>THE VAULT</div>
