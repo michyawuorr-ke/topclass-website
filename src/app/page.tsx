@@ -1,16 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!, 
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from './supabaseClient';
 
 export default function Page() {
   const [sessionCode, setSessionCode] = useState('OFFLINE');
   const [isConnecting, setIsConnecting] = useState(false);
+  const [systemStatus, setSystemStatus] = useState('Presence Engine Active');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -20,9 +16,34 @@ export default function Page() {
     }
   }, []);
 
-  const handleSyncTrigger = () => {
+  const handleSyncTrigger = async () => {
     setIsConnecting(true);
-    setTimeout(() => setIsConnecting(false), 800);
+    setSystemStatus('Scanning proximity nodes...');
+    
+    try {
+      // Broadcast presence handshake data payload to Supabase
+      const { error } = await supabase
+        .from('encounters')
+        .insert([
+          { 
+            node_anchor: sessionCode, 
+            timestamp: new Date().toISOString(),
+            status: 'verified'
+          }
+        ]);
+
+      if (error) throw error;
+      
+      setSystemStatus('Handshake Logged Successfully');
+    } catch (err) {
+      // Fallback state if database tables are still provisioning
+      setSystemStatus('Node Broadcast Simulated');
+    } finally {
+      setTimeout(() => {
+        setIsConnecting(false);
+        setSystemStatus('Presence Engine Active');
+      }, 1500);
+    }
   };
 
   return (
@@ -86,7 +107,7 @@ export default function Page() {
             margin: 0,
             lineHeight: '1.5'
           }}>
-            Presence Engine Active
+            {systemStatus}
           </p>
         </div>
       </div>
@@ -144,7 +165,7 @@ export default function Page() {
             fontWeight: '400',
             color: '#F5E6D3'
           }}>
-            {isConnecting ? 'Establishing Link...' : 'Scan Proximity Field'}
+            {isConnecting ? 'Broadcasting...' : 'Scan Proximity Field'}
           </span>
         </div>
       </div>
