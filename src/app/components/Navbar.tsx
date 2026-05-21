@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+interface NavbarProps {
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+}
 
-export default function Navbar() {
-  const [activeTab, setActiveTab] = useState('space');
-
+export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
   const tabs = [
     { id: 'space', label: 'Space' },
     { id: 'identity', label: 'Identity' },
@@ -20,12 +21,12 @@ export default function Navbar() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-3 text-xs tracking-widest uppercase transition-all duration-300 rounded-xl font-light text-center relative ${
+              className={`flex-1 py-3 text-xs tracking-widest uppercase transition-all duration-300 rounded-xl font-light text-center relative z-10 execution-touch ${
                 isActive ? 'text-[#2c221e] font-medium' : 'text-[#a3978e] hover:text-[#5a4d46]'
               }`}
             >
               {isActive && (
-                <span className="absolute inset-0 bg-[#f3ece3]/50 rounded-xl -z-10 layout-id-active" />
+                <span className="absolute inset-0 bg-[#f3ece3]/60 rounded-xl -z-10 layout-id-active transition-all duration-300" />
               )}
               {tab.label}
             </button>
