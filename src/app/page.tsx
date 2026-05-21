@@ -77,7 +77,7 @@ export default function OreetiSovereignEngine() {
     if (!currentIntent.trim()) return;
     setShowIntentModal(false);
     setIsVisible(true);
-    setSystemStatus();
+    setSystemStatus(`Broadcasting restricted matrix to ${sessionAnchor}`);
   };
 
   const initiateHandshake = (id: string) => {
@@ -102,7 +102,7 @@ export default function OreetiSovereignEngine() {
     setVaultUsers(prev => [...prev, connectedUser]);
     setRoomUsers(prev => prev.filter(u => u.id !== id));
     setActiveTab('vault');
-    setSystemStatus();
+    setSystemStatus(`Connection Locked with ${targetUser.name}. Full Profile Unmasked.`);
   };
 
   const declineHandshake = (id: string) => {
@@ -148,7 +148,7 @@ export default function OreetiSovereignEngine() {
               {roomUsers.map(user => (
                 <div key={user.id} style={{ 
                   padding: '16px', borderRadius: '18px', backgroundColor: 'rgba(38,25,22,0.3)', 
-                  border: , display: 'flex', flexDirection: 'column', gap: '10px' 
+                  border: '1px solid rgba(245,230,211,0.1)', display: 'flex', flexDirection: 'column', gap: '10px' 
                 }}>
                   {/* Strict Masking Filter Output */}
                   <div>
@@ -205,7 +205,7 @@ export default function OreetiSovereignEngine() {
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {vaultUsers.map(user => (
-                <div key={user.id} style={{ backgroundColor: 'rgba(38, 25, 22, 0.3)', borderRadius: '18px', padding: '16px', border:  }}>
+                <div key={user.id} style={{ backgroundColor: 'rgba(38, 25, 22, 0.3)', borderRadius: '18px', padding: '16px', border: '1px solid rgba(245,230,211,0.1)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontSize: '16px', fontWeight: '500', color: '#FDFBF7' }}>{user.full_name}</div>
@@ -219,8 +219,8 @@ export default function OreetiSovereignEngine() {
 
                   {user.contact_cleared ? (
                     <div style={{ marginTop: '10px', padding: '10px', borderRadius: '10px', backgroundColor: 'rgba(140, 230, 92, 0.04)', border: '1px solid rgba(140, 230, 92, 0.15)', display: 'flex', gap: '8px' }}>
-                      {user.shared_channels.phone && <a href={} style={{ textDecoration: 'none', padding: '4px 10px', background: 'rgba(245,230,211,0.05)', borderRadius: '6px', fontSize: '10px', color: '#F5E6D3' }}>PHONE</a>}
-                      {user.shared_channels.linkedin && <a href={} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', padding: '4px 10px', background: 'rgba(245,230,211,0.05)', borderRadius: '6px', fontSize: '10px', color: '#F5E6D3' }}>LINKEDIN</a>}
+                      {user.shared_channels.phone && <a href={`tel:${user.phone}`} style={{ textDecoration: 'none', padding: '4px 10px', background: 'rgba(245,230,211,0.05)', borderRadius: '6px', fontSize: '10px', color: '#F5E6D3' }}>PHONE</a>}
+                      {user.shared_channels.linkedin && <a href={`https://${user.linkedin_url}`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', padding: '4px 10px', background: 'rgba(245,230,211,0.05)', borderRadius: '6px', fontSize: '10px', color: '#F5E6D3' }}>LINKEDIN</a>}
                     </div>
                   ) : user.qr_handshake_completed ? (
                     <div style={{ marginTop: '12px', borderTop: '1px dashed rgba(245,230,211,0.08)', paddingTop: '10px' }}>
