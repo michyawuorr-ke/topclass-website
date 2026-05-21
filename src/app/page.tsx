@@ -15,21 +15,18 @@ interface Networker {
 }
 
 export default function OreetiSovereignEngine() {
-  // System UI States
   const [activeTab, setActiveTab] = useState<'room' | 'vault' | 'presence'>('presence');
   const [isVisible, setIsVisible] = useState(false);
   const [blackoutMode, setBlackoutMode] = useState(false);
   const [systemStatus, setSystemStatus] = useState('Presence Engine Initialized');
   
-  // Profile & Session States
   const [profile, setProfile] = useState({ name: 'Michy', title: 'Principal Architecture Lead', org: 'Oreeti Labs' });
   const [currentIntent, setCurrentUrlIntent] = useState('');
   const [sessionAnchor, setSessionAnchor] = useState('OFFLINE');
   const [showIntentModal, setShowIntentModal] = useState(false);
   const [currentUrl, setCurrentUrl] = useState('');
 
-  // Mock Active Session Data
-  const [activeUsers, setActiveUsers] = useState<Networker[]>([
+  const [activeUsers] = useState<Networker[]>([
     { id: '1', name: 'Alex', title: 'Design Director', org: 'Minimalist Studio', intent: 'Looking for container framework engineers', ring_color: '#E6A15C', timestamp: new Date().toISOString() },
     { id: '2', name: 'Elena', title: 'Materials Curator', org: 'Silk & Stone Co', intent: 'Sourcing organic textures for digital showroom design', ring_color: '#D9C3B0', timestamp: new Date(Date.now() - 50 * 3600 * 1000).toISOString() }
   ]);
@@ -82,7 +79,6 @@ export default function OreetiSovereignEngine() {
     return hours <= 48;
   };
 
-  // Google Charts QR Generator URL mapping current browser anchor parameters
   const qrCodeUrl = `https://chart.googleapis.com/chart?cht=qr&chs=200x200&chl=${encodeURIComponent(currentUrl)}&chco=F5E6D3&chf=bg,s,65432100`;
 
   if (blackoutMode) {
@@ -107,7 +103,7 @@ export default function OreetiSovereignEngine() {
       fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box'
     }}>
       
-      {/* UPPER 60%: Scrollable Interaction Canvas */}
+      {/* UPPER 60%: Interaction Canvas */}
       <div style={{ flex: 1, padding: '24px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         
         {/* TAB 1: THE ROOM */}
@@ -175,9 +171,9 @@ export default function OreetiSovereignEngine() {
           </div>
         )}
 
-        {/* TAB 3: PRESENCE (QR Integration Target) */}
+        {/* TAB 3: PRESENCE */}
         {activeTab === 'presence' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', pb: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '24px' }}>
             <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase' }}>
               Identity Matrix
             </div>
@@ -200,7 +196,6 @@ export default function OreetiSovereignEngine() {
               </div>
             </div>
 
-            {/* If user flips to visible, seamlessly project the Museum-Grade Proximity QR Canvas */}
             {isVisible && (
               <div style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px', 
@@ -222,7 +217,7 @@ export default function OreetiSovereignEngine() {
 
       </div>
 
-      {/* LOWER 40%: Strict Ergonomic Control Hub */}
+      {/* LOWER 40%: Ergonomic Control Hub */}
       <div style={{
         height: '38%', background: 'linear-gradient(to top, #0E0908 85%, rgba(20, 13, 12, 0))',
         padding: '0 24px 32px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', boxSizing: 'border-box'
