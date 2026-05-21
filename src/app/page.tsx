@@ -11,16 +11,23 @@ interface Networker {
   intent: string;
   ring_color: string;
   timestamp: string;
-  notes?: string;
 }
 
 export default function OreetiSovereignEngine() {
+  // System UI States
   const [activeTab, setActiveTab] = useState<'room' | 'vault' | 'presence'>('presence');
   const [isVisible, setIsVisible] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [blackoutMode, setBlackoutMode] = useState(false);
   const [systemStatus, setSystemStatus] = useState('Presence Engine Initialized');
   
-  const [profile, setProfile] = useState({ name: 'Michy', title: 'Principal Architecture Lead', org: 'Oreeti Labs' });
+  // Profile Profile Data & Domain Settings
+  const [profile, setProfile] = useState({
+    name: 'Michy',
+    title: 'Principal Architecture Lead',
+    domain: 'Digital Infrastructure & Spatial Design'
+  });
+  
   const [currentIntent, setCurrentUrlIntent] = useState('');
   const [sessionAnchor, setSessionAnchor] = useState('OFFLINE');
   const [showIntentModal, setShowIntentModal] = useState(false);
@@ -30,10 +37,6 @@ export default function OreetiSovereignEngine() {
     { id: '1', name: 'Alex', title: 'Design Director', org: 'Minimalist Studio', intent: 'Looking for container framework engineers', ring_color: '#E6A15C', timestamp: new Date().toISOString() },
     { id: '2', name: 'Elena', title: 'Materials Curator', org: 'Silk & Stone Co', intent: 'Sourcing organic textures for digital showroom design', ring_color: '#D9C3B0', timestamp: new Date(Date.now() - 50 * 3600 * 1000).toISOString() }
   ]);
-
-  const [vaultNotes, setVaultNotes] = useState<Record<string, string>>({
-    '1': 'Met near the structural concrete exhibition booth.'
-  });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -74,11 +77,6 @@ export default function OreetiSovereignEngine() {
     } catch (e) {}
   };
 
-  const isWithin48Hours = (timestampString: string) => {
-    const hours = (Date.now() - new Date(timestampString).getTime()) / (1000 * 60 * 60);
-    return hours <= 48;
-  };
-
   const qrCodeUrl = `https://chart.googleapis.com/chart?cht=qr&chs=200x200&chl=${encodeURIComponent(currentUrl)}&chco=F5E6D3&chf=bg,s,65432100`;
 
   if (blackoutMode) {
@@ -103,7 +101,7 @@ export default function OreetiSovereignEngine() {
       fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box'
     }}>
       
-      {/* UPPER 60%: Interaction Canvas */}
+      {/* UPPER 60%: Interaction Area */}
       <div style={{ flex: 1, padding: '24px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         
         {/* TAB 1: THE ROOM */}
@@ -112,14 +110,9 @@ export default function OreetiSovereignEngine() {
             <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase', marginBottom: '24px' }}>
               {sessionAnchor}
             </div>
-            
             {!isVisible ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#6E5950', fontSize: '14px', fontWeight: '300', padding: '0 24px' }}>
                 Anti-Lurker Reciprocity Active.<br />Toggle "Visible Mode" in Presence to unlock discovery.
-              </div>
-            ) : activeUsers.length === 0 ? (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#A68F81', fontSize: '14px', fontWeight: '300', padding: '0 24px' }}>
-                You are the first anchor node in this room. Keep your screen active or review the Vault while the room fills.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -148,43 +141,89 @@ export default function OreetiSovereignEngine() {
             <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase', marginBottom: '24px' }}>
               Relationship Vault
             </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div>
-                <div style={{ fontSize: '10px', color: '#E6A15C', letterSpacing: '1.5px', marginBottom: '10px', fontWeight: '600' }}>48-HOUR MOMENTUM FEED</div>
-                {activeUsers.filter(u => isWithin48Hours(u.timestamp)).map(user => (
-                  <div key={user.id} style={{ backgroundColor: 'rgba(38, 25, 22, 0.25)', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '20px', padding: '16px', marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#F5E6D3', fontWeight: '400' }}>{user.name}</span>
-                      <span style={{ fontSize: '11px', color: '#E6A15C' }}>Active Momentum</span>
-                    </div>
-                    <textarea 
-                      placeholder="Add safe contextual notes here..."
-                      value={vaultNotes[user.id] || ''}
-                      onChange={(e) => setVaultNotes({...vaultNotes, [user.id]: e.target.value})}
-                      style={{ width: '100%', background: '#0E0908', border: '1px solid rgba(245, 230, 211, 0.05)', borderRadius: '8px', color: '#D9C3B0', padding: '8px', marginTop: '10px', fontSize: '12px', resize: 'none' }}
-                    />
-                  </div>
-                ))}
+            <div style={{ backgroundColor: 'rgba(38, 25, 22, 0.25)', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '20px', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#F5E6D3', fontWeight: '400' }}>Alex</span>
+                <span style={{ fontSize: '11px', color: '#E6A15C' }}>Active Momentum</span>
               </div>
+              <div style={{ fontSize: '12px', color: '#A68F81', marginTop: '6px' }}>Met near the structural concrete exhibition booth.</div>
             </div>
           </div>
         )}
 
-        {/* TAB 3: PRESENCE */}
+        {/* TAB 3: PRESENCE (Premium Card Realization) */}
         {activeTab === 'presence' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '24px' }}>
-            <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase', marginBottom: '8px' }}>
               Identity Matrix
             </div>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <input type="text" value={profile.name} onChange={(e) => setProfile({...profile, name: e.target.value})} placeholder="Identity Handle" style={{ background: '#1C1211', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '12px', padding: '12px', color: '#F5E6D3', fontSize: '14px' }} />
-              <input type="text" value={profile.title} onChange={(e) => setProfile({...profile, title: e.target.value})} placeholder="Designation" style={{ background: '#1C1211', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '12px', padding: '12px', color: '#F5E6D3', fontSize: '14px' }} />
-              <input type="text" value={profile.org} onChange={(e) => setProfile({...profile, org: e.target.value})} placeholder="Organization" style={{ background: '#1C1211', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '12px', padding: '12px', color: '#F5E6D3', fontSize: '14px' }} />
+            {/* Museum-Grade Glassmorphism Identity Card */}
+            <div style={{
+              width: '100%',
+              backgroundColor: 'rgba(38, 25, 22, 0.45)',
+              backdropFilter: 'blur(30px)',
+              WebkitBackdropFilter: 'blur(30px)',
+              borderRadius: '28px',
+              padding: '32px 24px',
+              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(245, 230, 211, 0.12)',
+              border: '1px solid rgba(245, 230, 211, 0.06)',
+              position: 'relative',
+              boxSizing: 'border-box'
+            }}>
+              
+              {/* Management/Edit Icon Overlay Node */}
+              <div 
+                onClick={() => setIsEditing(!isEditing)}
+                style={{
+                  position: 'absolute', top: '24px', right: '24px', cursor: 'pointer',
+                  padding: '8px', borderRadius: '50%', backgroundColor: 'rgba(20, 13, 12, 0.5)',
+                  border: '1px solid rgba(245, 230, 211, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+              >
+                {isEditing ? (
+                  /* Clean Checkmark for Save state */
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8CE65C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                ) : (
+                  /* Premium Minimal Edit Node Matrix Vector */
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D9C3B0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"></path></svg>
+                )}
+              </div>
+
+              {/* Identity Details Content Loop */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                  <div style={{ fontSize: '9px', color: '#6E5950', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>IDENTITY HANDLE</div>
+                  {isEditing ? (
+                    <input type="text" value={profile.name} onChange={(e) => setProfile({...profile, name: e.target.value})} style={{ width: '100%', background: 'rgba(20, 13, 12, 0.6)', border: 'none', borderBottom: '1px solid #E6A15C', color: '#F5E6D3', fontSize: '22px', fontWeight: '300', padding: '4px 0', outline: 'none' }} />
+                  ) : (
+                    <div style={{ fontSize: '24px', fontWeight: '300', color: '#F5E6D3', letterSpacing: '-0.5px' }}>{profile.name}</div>
+                  )}
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '9px', color: '#6E5950', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>DESIGNATION</div>
+                  {isEditing ? (
+                    <input type="text" value={profile.title} onChange={(e) => setProfile({...profile, title: e.target.value})} style={{ width: '100%', background: 'rgba(20, 13, 12, 0.6)', border: 'none', borderBottom: '1px solid #E6A15C', color: '#D9C3B0', fontSize: '14px', padding: '4px 0', outline: 'none' }} />
+                  ) : (
+                    <div style={{ fontSize: '14px', color: '#D9C3B0', fontWeight: '400', letterSpacing: '0.5px' }}>{profile.title}</div>
+                  )}
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '9px', color: '#6E5950', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>PROFESSIONAL DOMAIN</div>
+                  {isEditing ? (
+                    <input type="text" value={profile.domain} onChange={(e) => setProfile({...profile, domain: e.target.value})} style={{ width: '100%', background: 'rgba(20, 13, 12, 0.6)', border: 'none', borderBottom: '1px solid #E6A15C', color: '#A68F81', fontSize: '13px', padding: '4px 0', outline: 'none' }} />
+                  ) : (
+                    <div style={{ fontSize: '13px', color: '#A68F81', fontWeight: '400', lineHeight: '1.4' }}>{profile.domain}</div>
+                  )}
+                </div>
+              </div>
+
             </div>
 
-            <div style={{ padding: '14px', borderRadius: '16px', backgroundColor: 'rgba(38,25,22,0.2)', border: '1px solid rgba(245, 230, 211, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Visibility Dashboard Controller */}
+            <div style={{ padding: '16px', borderRadius: '20px', backgroundColor: 'rgba(38,25,22,0.2)', border: '1px solid rgba(245, 230, 211, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
               <div>
                 <div style={{ fontSize: '13px', color: '#F5E6D3' }}>Visible Mode</div>
                 <div style={{ fontSize: '11px', color: '#A68F81', marginTop: '2px' }}>{isVisible ? 'Broadcasting Proximity Node' : 'Invisible'}</div>
@@ -196,11 +235,12 @@ export default function OreetiSovereignEngine() {
               </div>
             </div>
 
+            {/* Proximity Target Code Display */}
             {isVisible && (
               <div style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px', 
                 backgroundColor: 'rgba(38, 25, 22, 0.45)', backdropFilter: 'blur(30px)', borderRadius: '24px',
-                border: '1px solid rgba(245, 230, 211, 0.08)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', marginTop: '8px'
+                border: '1px solid rgba(245, 230, 211, 0.08)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
               }}>
                 <div style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '2px', color: '#D9C3B0', textTransform: 'uppercase', marginBottom: '14px' }}>
                   PROXIMITY RADAR QR
@@ -217,7 +257,7 @@ export default function OreetiSovereignEngine() {
 
       </div>
 
-      {/* LOWER 40%: Ergonomic Control Hub */}
+      {/* LOWER 40%: Control Hub & 3-Tab Navigation Dock */}
       <div style={{
         height: '38%', background: 'linear-gradient(to top, #0E0908 85%, rgba(20, 13, 12, 0))',
         padding: '0 24px 32px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', boxSizing: 'border-box'
@@ -240,12 +280,12 @@ export default function OreetiSovereignEngine() {
           </div>
         )}
 
-        {/* Operational System Status Bar */}
+        {/* Operational Status Diagnostics */}
         <div style={{ textAlign: 'center', marginBottom: '24px', fontSize: '10px', color: '#6E5950', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
           {systemStatus}
         </div>
 
-        {/* 3-Tab Dock */}
+        {/* The Three-Tab Dock */}
         <div style={{
           height: '64px', backgroundColor: 'rgba(28, 18, 17, 0.85)', borderRadius: '20px', border: '1px solid rgba(245, 230, 211, 0.08)',
           display: 'flex', justifyContent: 'space-around', alignItems: 'center', boxShadow: '0 10px 30px rgba(0,0,0,0.4)', backdropFilter: 'blur(10px)'
