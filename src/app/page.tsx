@@ -26,11 +26,12 @@ export default function OreetiSovereignEngine() {
   const [currentIntent, setCurrentUrlIntent] = useState('');
   const [sessionAnchor, setSessionAnchor] = useState('OFFLINE');
   const [showIntentModal, setShowIntentModal] = useState(false);
+  const [currentUrl, setCurrentUrl] = useState('');
 
-  // Mock Active Session Data for Ephemeral Feed (Tab 1) & Vault (Tab 2)
+  // Mock Active Session Data
   const [activeUsers, setActiveUsers] = useState<Networker[]>([
     { id: '1', name: 'Alex', title: 'Design Director', org: 'Minimalist Studio', intent: 'Looking for container framework engineers', ring_color: '#E6A15C', timestamp: new Date().toISOString() },
-    { id: '2', name: 'Elena', title: 'Materials Curator', org: 'Silk & Stone Co', intent: 'Sourcing organic textures for digital showroom design', ring_color: '#D9C3B0', timestamp: new Date(Date.now() - 50 * 3600 * 1000).toISOString() } // > 48hrs
+    { id: '2', name: 'Elena', title: 'Materials Curator', org: 'Silk & Stone Co', intent: 'Sourcing organic textures for digital showroom design', ring_color: '#D9C3B0', timestamp: new Date(Date.now() - 50 * 3600 * 1000).toISOString() }
   ]);
 
   const [vaultNotes, setVaultNotes] = useState<Record<string, string>>({
@@ -39,6 +40,7 @@ export default function OreetiSovereignEngine() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      setCurrentUrl(window.location.href);
       const params = new URLSearchParams(window.location.search);
       const room = params.get('room');
       if (room) {
@@ -47,7 +49,6 @@ export default function OreetiSovereignEngine() {
     }
   }, []);
 
-  // Visibility Toggle & Intent Prompt Rule
   const handleVisibilityToggle = () => {
     if (!isVisible) {
       setShowIntentModal(true);
@@ -68,7 +69,6 @@ export default function OreetiSovereignEngine() {
     } catch (e) {}
   };
 
-  // Connection Request -> Blackout Protocol Trigger
   const triggerConnection = async (targetName: string) => {
     setBlackoutMode(true);
     setSystemStatus(`Connection established with ${targetName}`);
@@ -77,13 +77,14 @@ export default function OreetiSovereignEngine() {
     } catch (e) {}
   };
 
-  // Helper to determine 48-Hour Momentum Engine priority
   const isWithin48Hours = (timestampString: string) => {
     const hours = (Date.now() - new Date(timestampString).getTime()) / (1000 * 60 * 60);
     return hours <= 48;
   };
 
-  // --- SCREEN BLACKOUT PROTOCOL VIEW ---
+  // Google Charts QR Generator URL mapping current browser anchor parameters
+  const qrCodeUrl = `https://chart.googleapis.com/chart?cht=qr&chs=200x200&chl=${encodeURIComponent(currentUrl)}&chco=F5E6D3&chf=bg,s,65432100`;
+
   if (blackoutMode) {
     return (
       <div onClick={() => setBlackoutMode(false)} style={{
@@ -106,10 +107,10 @@ export default function OreetiSovereignEngine() {
       fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box'
     }}>
       
-      {/* UPPER 60%: Dynamic Contextual Feed & Vault Space */}
+      {/* UPPER 60%: Scrollable Interaction Canvas */}
       <div style={{ flex: 1, padding: '24px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         
-        {/* TAB 1: THE ROOM VIEW */}
+        {/* TAB 1: THE ROOM */}
         {activeTab === 'room' && (
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
             <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase', marginBottom: '24px' }}>
@@ -145,14 +146,13 @@ export default function OreetiSovereignEngine() {
           </div>
         )}
 
-        {/* TAB 2: THE VAULT VIEW */}
+        {/* TAB 2: THE VAULT */}
         {activeTab === 'vault' && (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase', marginBottom: '24px' }}>
               Relationship Vault
             </div>
             
-            {/* Split view into 48h Momentum Engine vs History */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div>
                 <div style={{ fontSize: '10px', color: '#E6A15C', letterSpacing: '1.5px', marginBottom: '10px', fontWeight: '600' }}>48-HOUR MOMENTUM FEED</div>
@@ -171,60 +171,64 @@ export default function OreetiSovereignEngine() {
                   </div>
                 ))}
               </div>
-
-              <div>
-                <div style={{ fontSize: '10px', color: '#6E5950', letterSpacing: '1.5px', marginBottom: '10px' }}>ARCHIVED CONNECTIONS</div>
-                {activeUsers.filter(u => !isWithin48Hours(u.timestamp)).map(user => (
-                  <div key={user.id} style={{ backgroundColor: 'rgba(20, 13, 12, 0.3)', border: '1px solid rgba(245, 230, 211, 0.03)', borderRadius: '20px', padding: '16px', opacity: 0.7 }}>
-                    <div style={{ color: '#A68F81' }}>{user.name} — <span style={{ fontSize: '11px' }}>Archived</span></div>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         )}
 
-        {/* TAB 3: PRESENCE VIEW */}
+        {/* TAB 3: PRESENCE (QR Integration Target) */}
         {activeTab === 'presence' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', pb: '20px' }}>
             <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase' }}>
               Identity Matrix
             </div>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <label style={{ fontSize: '10px', color: '#6E5950', letterSpacing: '1px' }}>IDENTITY HANDLE</label>
-              <input type="text" value={profile.name} onChange={(e) => setProfile({...profile, name: e.target.value})} style={{ background: '#1C1211', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '12px', padding: '14px', color: '#F5E6D3', fontSize: '14px' }} />
-              
-              <label style={{ fontSize: '10px', color: '#6E5950', letterSpacing: '1px' }}>DESIGNATION / ROLE</label>
-              <input type="text" value={profile.title} onChange={(e) => setProfile({...profile, title: e.target.value})} style={{ background: '#1C1211', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '12px', padding: '14px', color: '#F5E6D3', fontSize: '14px' }} />
-              
-              <label style={{ fontSize: '10px', color: '#6E5950', letterSpacing: '1px' }}>ORGANIZATION</label>
-              <input type="text" value={profile.org} onChange={(e) => setProfile({...profile, org: e.target.value})} style={{ background: '#1C1211', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '12px', padding: '14px', color: '#F5E6D3', fontSize: '14px' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <input type="text" value={profile.name} onChange={(e) => setProfile({...profile, name: e.target.value})} placeholder="Identity Handle" style={{ background: '#1C1211', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '12px', padding: '12px', color: '#F5E6D3', fontSize: '14px' }} />
+              <input type="text" value={profile.title} onChange={(e) => setProfile({...profile, title: e.target.value})} placeholder="Designation" style={{ background: '#1C1211', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '12px', padding: '12px', color: '#F5E6D3', fontSize: '14px' }} />
+              <input type="text" value={profile.org} onChange={(e) => setProfile({...profile, org: e.target.value})} placeholder="Organization" style={{ background: '#1C1211', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '12px', padding: '12px', color: '#F5E6D3', fontSize: '14px' }} />
             </div>
 
-            <div style={{ marginTop: '12px', padding: '16px', borderRadius: '20px', backgroundColor: 'rgba(38,25,22,0.2)', border: '1px solid rgba(245, 230, 211, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '14px', borderRadius: '16px', backgroundColor: 'rgba(38,25,22,0.2)', border: '1px solid rgba(245, 230, 211, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '13px', color: '#F5E6D3' }}>Node Broadcasting</div>
-                <div style={{ fontSize: '11px', color: '#A68F81', marginTop: '2px' }}>{isVisible ? 'Visible to Room Network' : 'Invisible (Vault Only)'}</div>
+                <div style={{ fontSize: '13px', color: '#F5E6D3' }}>Visible Mode</div>
+                <div style={{ fontSize: '11px', color: '#A68F81', marginTop: '2px' }}>{isVisible ? 'Broadcasting Proximity Node' : 'Invisible'}</div>
               </div>
               <div onClick={handleVisibilityToggle} style={{
-                width: '50px', height: '28px', backgroundColor: isVisible ? '#E6A15C' : '#2E1E1B', borderRadius: '14px', position: 'relative', cursor: 'pointer', transition: 'all 0.2s'
+                width: '46px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#2E1E1B', borderRadius: '12px', position: 'relative', cursor: 'pointer', transition: 'all 0.2s'
               }}>
-                <div style={{ width: '22px', height: '22px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '25px' : '3px', transition: 'all 0.2s' }} />
+                <div style={{ width: '18px', height: '18px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '25px' : '3px', transition: 'all 0.2s' }} />
               </div>
             </div>
+
+            {/* If user flips to visible, seamlessly project the Museum-Grade Proximity QR Canvas */}
+            {isVisible && (
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px', 
+                backgroundColor: 'rgba(38, 25, 22, 0.45)', backdropFilter: 'blur(30px)', borderRadius: '24px',
+                border: '1px solid rgba(245, 230, 211, 0.08)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', marginTop: '8px'
+              }}>
+                <div style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '2px', color: '#D9C3B0', textTransform: 'uppercase', marginBottom: '14px' }}>
+                  PROXIMITY RADAR QR
+                </div>
+                <img 
+                  src={qrCodeUrl} 
+                  alt="Proximity Node QR" 
+                  style={{ width: '130px', height: '130px', display: 'block', padding: '8px', backgroundColor: 'rgba(20, 13, 12, 0.4)', borderRadius: '16px' }}
+                />
+              </div>
+            )}
           </div>
         )}
 
       </div>
 
-      {/* LOWER 40%: Strict Ergonomic Control Hub & 3-Tab Dock */}
+      {/* LOWER 40%: Strict Ergonomic Control Hub */}
       <div style={{
         height: '38%', background: 'linear-gradient(to top, #0E0908 85%, rgba(20, 13, 12, 0))',
         padding: '0 24px 32px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', boxSizing: 'border-box'
       }}>
         
-        {/* Dynamic Context Intent Modal Overlay (Anchored in Thumb Zone) */}
+        {/* Dynamic Context Intent Modal Overlay */}
         {showIntentModal && (
           <div style={{ backgroundColor: '#1C1211', border: '1px solid rgba(245, 230, 211, 0.15)', borderRadius: '24px', padding: '20px', marginBottom: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
             <div style={{ fontSize: '11px', color: '#D9C3B0', letterSpacing: '1px', marginBottom: '8px' }}>MANDATORY SESSION INTENT</div>
@@ -241,12 +245,12 @@ export default function OreetiSovereignEngine() {
           </div>
         )}
 
-        {/* Operational System Diagnostics Status Bar */}
+        {/* Operational System Status Bar */}
         <div style={{ textAlign: 'center', marginBottom: '24px', fontSize: '10px', color: '#6E5950', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
           {systemStatus}
         </div>
 
-        {/* The Three-Tab Museum Grade Dock */}
+        {/* 3-Tab Dock */}
         <div style={{
           height: '64px', backgroundColor: 'rgba(28, 18, 17, 0.85)', borderRadius: '20px', border: '1px solid rgba(245, 230, 211, 0.08)',
           display: 'flex', justifyContent: 'space-around', alignItems: 'center', boxShadow: '0 10px 30px rgba(0,0,0,0.4)', backdropFilter: 'blur(10px)'
