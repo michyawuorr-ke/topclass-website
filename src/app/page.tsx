@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 interface Networker {
   id: string;
   name: string;
+  full_name: string; // Restricted to single name when broadcasting
   title: string;
   domain: string;
   intent: string;
@@ -16,12 +17,12 @@ interface Networker {
   email?: string;
   phone?: string;
   linkedin_url?: string;
+  handshake_status: 'none' | 'sent' | 'received' | 'connected';
 }
 
 export default function OreetiSovereignEngine() {
   const [activeTab, setActiveTab] = useState<'room' | 'vault' | 'presence'>('room');
   const [isVisible, setIsVisible] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [systemStatus, setSystemStatus] = useState('Sovereign Matrix Initialized');
   
   const [profile, setProfile] = useState({
@@ -31,28 +32,19 @@ export default function OreetiSovereignEngine() {
   });
   
   const [currentIntent, setCurrentUrlIntent] = useState('');
-  const [sessionAnchor, setSessionAnchor] = useState('');
+  const [sessionAnchor, setSessionAnchor] = useState('ROOM: NAIROBI_GARAGE'); // Hardcoded for simple MVP testing
   const [customInputTag, setCustomInputTag] = useState('');
   const [showIntentModal, setShowIntentModal] = useState(false);
-  
-  // Rotating placeholder array to teach the user context intuitively
-  const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const placeholders = ['e.g., NairobiGarage', 'e.g., KICC2026', 'e.g., AlchemistMixer', 'e.g., DesignWeek'];
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const [vaultUsers, setVaultUsers] = useState<Networker[]>([
+  // High-fidelity node simulation array
+  const [roomUsers, setRoomUsers] = useState<Networker[]>([
     { 
-      id: '1', 
+      id: 'node_01', 
       name: 'Alex', 
+      full_name: 'Alex Kiprop',
       title: 'Design Director', 
-      domain: 'Modular Structures', 
-      intent: 'Sourcing engineering schematics', 
+      domain: 'Modular Structural Blueprints', 
+      intent: 'Sourcing premium 40ft container engineering schematics', 
       ring_color: '#E6A15C', 
       timestamp: new Date().toISOString(), 
       qr_handshake_completed: false,
@@ -60,22 +52,19 @@ export default function OreetiSovereignEngine() {
       shared_channels: { phone: false, linkedin: false },
       email: 'alex@modularmatrix.io',
       phone: '+254700000000',
-      linkedin_url: 'linkedin.com/in/alex-modular'
+      linkedin_url: 'linkedin.com/in/alex-modular',
+      handshake_status: 'none' // State tracking loop
     }
   ]);
 
-  const [vaultNotes, setVaultNotes] = useState<Record<string, string>>({
-    '1': 'Met at local mixer. Discussed structural layout mechanics.'
-  });
-
-  const [shareSelection, setShareSelection] = useState<Record<string, { phone: boolean; linkedin: boolean }>>({
-    '1': { phone: false, linkedin: false }
-  });
+  const [vaultUsers, setVaultUsers] = useState<Networker[]>([]);
+  const [vaultNotes, setVaultNotes] = useState<Record<string, string>>({});
+  const [shareSelection, setShareSelection] = useState<Record<string, { phone: boolean; linkedin: boolean }>>({});
 
   const handleVisibilityToggle = () => {
     if (!isVisible) {
       if (!sessionAnchor) {
-        setSystemStatus('Action Locked: Must anchor to a Room Keyword first.');
+        setSystemStatus('Action Locked: Enter a Room Tag first.');
         return;
       }
       setShowIntentModal(true);
@@ -89,19 +78,44 @@ export default function OreetiSovereignEngine() {
     if (!currentIntent.trim()) return;
     setShowIntentModal(false);
     setIsVisible(true);
-    setSystemStatus(`Broadcasting active node to: ${sessionAnchor}`);
+    setSystemStatus();
   };
 
-  const handleJoinFreeEventRoom = () => {
-    if (!customInputTag.trim()) return;
-    const cleanTag = customInputTag.trim().toUpperCase();
-    setSessionAnchor(`ROOM: ${cleanTag}`);
-    setSystemStatus(`Successfully aligned with cluster: ${cleanTag}`);
+  // Handshake Action Triggers
+  const initiateHandshake = (id: string) => {
+    setRoomUsers(prev => prev.map(u => u.id === id ? { ...u, handshake_status: 'sent' } : u));
+    setSystemStatus('Handshake broadcasted securely into the space.');
+    
+    // Simulate target user receiving the handshake and sending it back for testing purposes
+    setTimeout(() => {
+      setRoomUsers(prev => prev.map(u => u.id === id ? { ...u, handshake_status: 'received' } : u));
+      setSystemStatus('Incoming Handshake Signal Detected');
+    }, 2500);
+  };
+
+  const acceptHandshake = (id: string) => {
+    const targetUser = roomUsers.find(u => u.id === id);
+    if (!targetUser) return;
+
+    const connectedUser: Networker = {
+      ...targetUser,
+      handshake_status: 'connected'
+    };
+
+    setVaultUsers(prev => [...prev, connectedUser]);
+    setRoomUsers(prev => prev.filter(u => u.id !== id)); // Remove from scanning canvas
+    setActiveTab('vault'); // Smooth view swipe to the archive matrix
+    setSystemStatus();
+  };
+
+  const declineHandshake = (id: string) => {
+    setRoomUsers(prev => prev.map(u => u.id === id ? { ...u, handshake_status: 'none' } : u));
+    setSystemStatus('Handshake cleared silently.');
   };
 
   const simulateQRScanHandshake = (id: string) => {
     setVaultUsers(prev => prev.map(u => u.id === id ? { ...u, qr_handshake_completed: true } : u));
-    setSystemStatus('QR Link Verified. Permissions open in Vault.');
+    setSystemStatus('QR Matched. Deep Tier 2 Channels Open.');
   };
 
   const handleGrantClearance = (id: string) => {
@@ -111,7 +125,7 @@ export default function OreetiSovereignEngine() {
       contact_cleared: true,
       shared_channels: { phone: selection.phone, linkedin: selection.linkedin }
     } : u));
-    setSystemStatus('Selected identity nodes disclosed.');
+    setSystemStatus('Explicit profile channels authorized.');
   };
 
   return (
@@ -120,91 +134,98 @@ export default function OreetiSovereignEngine() {
       fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box'
     }}>
       
-      {/* UPPER CANVAS */}
+      {/* UPPER AREA: Interaction Workspace Screen */}
       <div style={{ flex: 1, padding: '24px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         
-        {/* TAB 1: THE ROOM (With Intuitive Education Array) */}
+        {/* TAB 1: THE ROOM (Masked Limited Info State) */}
         {activeTab === 'room' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1 }}>
             <div>
               <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase' }}>
-                {sessionAnchor || 'Dormant Matrix'}
+                {sessionAnchor || 'Dormant Radar'}
               </div>
-              <div style={{ fontSize: '11px', color: '#6E5950', marginTop: '2px' }}>Proximity Workspace Discovery</div>
+              <div style={{ fontSize: '11px', color: '#6E5950', marginTop: '2px' }}>Proximity Matrix Scan Feed</div>
             </div>
 
-            {!sessionAnchor ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', justifyContent: 'center', flex: 0.8 }}>
-                
-                {/* Ultra-minimalist pedagogical statement */}
-                <div style={{ textAlign: 'center', padding: '0 16px' }}>
-                  <div style={{ fontSize: '15px', fontWeight: '300', color: '#F5E6D3', lineHeight: '1.5', marginBottom: '6px' }}>
-                    Align your interface.
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#6E5950', lineHeight: '1.4', fontWeight: '300' }}>
-                    Type any agreed keyword or venue tag with people nearby to instantly share the local digital canvas.
-                  </div>
-                </div>
-
-                {/* Highly Guided Input Array */}
-                <div style={{ padding: '20px', borderRadius: '20px', backgroundColor: 'rgba(38, 25, 22, 0.3)', border: '1px solid rgba(245,230,211,0.06)' }}>
-                  <div style={{ fontSize: '9px', color: '#A68F81', marginBottom: '8px', letterSpacing: '1px', fontWeight: '600' }}>ENTER SHARED EVENT KEYWORD</div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input 
-                      type="text" 
-                      placeholder={placeholders[placeholderIndex]} 
-                      value={customInputTag} 
-                      onChange={(e) => setCustomInputTag(e.target.value)} 
-                      style={{ flex: 1, background: '#0E0908', border: '1px solid rgba(245,230,211,0.1)', borderRadius: '10px', padding: '12px', color: '#F5E6D3', fontSize: '13px', outline: 'none', transition: 'all 0.3s' }} 
-                    />
-                    <div onClick={handleJoinFreeEventRoom} style={{ backgroundColor: '#E6A15C', color: '#140D0C', padding: '12px 18px', borderRadius: '10px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                      JOIN
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {roomUsers.map(user => (
+                <div key={user.id} style={{ 
+                  padding: '16px', borderRadius: '18px', backgroundColor: 'rgba(38,25,22,0.3)', 
+                  border: , display: 'flex', flexDirection: 'column', gap: '10px' 
+                }}>
+                  {/* Strict Masking Filter Output */}
+                  <div>
+                    <div style={{ fontSize: '15px', fontWeight: '500', color: '#F5E6D3' }}>
+                      {user.name} <span style={{ fontSize: '12px', color: '#A68F81', fontWeight: '300', marginLeft: '4px' }}>— {user.title}</span>
+                    </div>
+                    {/* Domain or contact channels are completely hidden here */}
+                    <div style={{ fontSize: '11px', color: '#E6A15C', marginTop: '4px', fontStyle: 'italic', lineHeight: '1.4' }}>
+                      "Intent: {user.intent}"
                     </div>
                   </div>
-                </div>
 
-              </div>
-            ) : (
-              /* Populated Room Roster list elements */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ fontSize: '10px', color: '#6E5950', letterSpacing: '1px' }}>ACTIVE NETWORKERS BROADCASTING HERE</div>
-                <div style={{ padding: '14px', borderRadius: '14px', backgroundColor: 'rgba(38,25,22,0.2)', border: '1px solid rgba(245,230,211,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: '14px', color: '#F5E6D3', fontWeight: '500' }}>Alex</div>
-                    <div style={{ fontSize: '11px', color: '#A68F81' }}>Design Director — Modular Systems</div>
-                  </div>
-                  <div onClick={() => setSystemStatus('Alex registered to personal Vault archive')} style={{ fontSize: '10px', color: '#E6A15C', border: '1px solid rgba(230,161,92,0.3)', padding: '4px 10px', borderRadius: '8px', cursor: 'pointer' }}>
-                    + ADD TO VAULT
-                  </div>
+                  {/* Contextual Handshake State Flow Controls */}
+                  {user.handshake_status === 'none' && (
+                    <div onClick={() => initiateHandshake(user.id)} style={{ alignSelf: 'flex-start', fontSize: '10px', color: '#E6A15C', border: '1px solid rgba(230,161,92,0.3)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', letterSpacing: '0.5px', fontWeight: '600' }}>
+                      INITIATE HANDSHAKE
+                    </div>
+                  )}
+
+                  {user.handshake_status === 'sent' && (
+                    <div style={{ alignSelf: 'flex-start', fontSize: '10px', color: '#6E5950', padding: '6px 0', letterSpacing: '0.5px' }}>
+                      PINGING MATRIX NODE...
+                    </div>
+                  )}
+
+                  {user.handshake_status === 'received' && (
+                    <div style={{ display: 'flex', gap: '8px', background: 'rgba(230,161,92,0.05)', padding: '10px', borderRadius: '10px', border: '1px solid rgba(230,161,92,0.15)' }}>
+                      <div onClick={() => acceptHandshake(user.id)} style={{ flex: 1, textCenter: 'center', backgroundColor: '#E6A15C', color: '#140D0C', padding: '6px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', textAlign: 'center' }}>
+                        ACCEPT
+                      </div>
+                      <div onClick={() => declineHandshake(user.id)} style={{ flex: 1, textCenter: 'center', backgroundColor: 'rgba(255,255,255,0.05)', color: '#A68F81', padding: '6px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', textAlign: 'center' }}>
+                        IGNORE
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              ))}
+              
+              {roomUsers.length === 0 && (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: '#6E5950', fontSize: '12px' }}>
+                  No extra broadcasting nodes found in this sector.
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* TAB 2: VAULT */}
+        {/* TAB 2: PRIVACY RELATIONSHIP VAULT (Full Identity Unmasked State) */}
         {activeTab === 'vault' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
               <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase' }}>Relationship Vault</div>
-              <div style={{ fontSize: '11px', color: '#6E5950', marginTop: '2px' }}>Personal Archive Matrix</div>
+              <div style={{ fontSize: '11px', color: '#6E5950', marginTop: '2px' }}>Fully Unmasked Secure Connections</div>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {vaultUsers.map(user => (
-                <div key={user.id} style={{ backgroundColor: 'rgba(38, 25, 22, 0.3)', borderRadius: '18px', padding: '16px', border: `1px solid ${user.ring_color}25` }}>
+                <div key={user.id} style={{ backgroundColor: 'rgba(38, 25, 22, 0.3)', borderRadius: '18px', padding: '16px', border:  }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: '15px', fontWeight: '500', color: '#F5E6D3' }}>{user.name} <span style={{ fontSize: '12px', color: '#A68F81', fontWeight: '300', marginLeft: '6px' }}>{user.title}</span></div>
+                    <div>
+                      {/* Full Name and domain display unmasks safely inside the Vault */}
+                      <div style={{ fontSize: '16px', fontWeight: '500', color: '#FDFBF7' }}>{user.full_name}</div>
+                      <div style={{ fontSize: '12px', color: '#D9C3B0', marginTop: '2px' }}>{user.title} — <span style={{ color: '#A68F81' }}>{user.domain}</span></div>
+                    </div>
                   </div>
                   
-                  <div style={{ marginTop: '8px' }}>
-                    <textarea value={vaultNotes[user.id] || ''} onChange={(e) => setVaultNotes({...vaultNotes, [user.id]: e.target.value})} placeholder="Type private memory triggers..." style={{ width: '100%', background: 'rgba(20, 13, 12, 0.4)', border: '1px solid rgba(245, 230, 211, 0.04)', borderRadius: '10px', color: '#D9C3B0', padding: '8px 10px', fontSize: '11px', resize: 'none', height: '36px', outline: 'none', fontFamily: 'inherit' }} />
+                  <div style={{ marginTop: '10px' }}>
+                    <textarea value={vaultNotes[user.id] || ''} onChange={(e) => setVaultNotes({...vaultNotes, [user.id]: e.target.value})} placeholder="Write down private details or booth markers to remember this person..." style={{ width: '100%', background: 'rgba(20, 13, 12, 0.4)', border: '1px solid rgba(245, 230, 211, 0.04)', borderRadius: '10px', color: '#D9C3B0', padding: '8px 10px', fontSize: '11px', resize: 'none', height: '44px', outline: 'none', fontFamily: 'inherit' }} />
                   </div>
 
                   {user.contact_cleared ? (
                     <div style={{ marginTop: '10px', padding: '10px', borderRadius: '10px', backgroundColor: 'rgba(140, 230, 92, 0.04)', border: '1px solid rgba(140, 230, 92, 0.15)', display: 'flex', gap: '8px' }}>
-                      {user.shared_channels.phone && <a href={`tel:${user.phone}`} style={{ textDecoration: 'none', padding: '4px 10px', background: 'rgba(245,230,211,0.05)', borderRadius: '6px', fontSize: '10px', color: '#F5E6D3' }}>PHONE</a>}
-                      {user.shared_channels.linkedin && <a href={`https://${user.linkedin_url}`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', padding: '4px 10px', background: 'rgba(245,230,211,0.05)', borderRadius: '6px', fontSize: '10px', color: '#F5E6D3' }}>LINKEDIN</a>}
+                      {user.shared_channels.phone && <a href={} style={{ textDecoration: 'none', padding: '4px 10px', background: 'rgba(245,230,211,0.05)', borderRadius: '6px', fontSize: '10px', color: '#F5E6D3' }}>PHONE</a>}
+                      {user.shared_channels.linkedin && <a href={} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', padding: '4px 10px', background: 'rgba(245,230,211,0.05)', borderRadius: '6px', fontSize: '10px', color: '#F5E6D3' }}>LINKEDIN</a>}
                     </div>
                   ) : user.qr_handshake_completed ? (
                     <div style={{ marginTop: '12px', borderTop: '1px dashed rgba(245,230,211,0.08)', paddingTop: '10px' }}>
@@ -215,8 +236,8 @@ export default function OreetiSovereignEngine() {
                       <div onClick={() => handleGrantClearance(user.id)} style={{ padding: '8px', textAlign: 'center', background: '#2E1E1B', border: '1px solid rgba(230,161,92,0.2)', borderRadius: '8px', fontSize: '11px', color: '#E6A15C', cursor: 'pointer' }}>GRANT CLEARANCE</div>
                     </div>
                   ) : (
-                    <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '10px', color: '#6E5950', fontStyle: 'italic' }}>Requires late-night QR handshake to swap links</span>
+                    <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(20,13,12,0.3)', padding: '8px 12px', borderRadius: '10px' }}>
+                      <span style={{ fontSize: '10px', color: '#6E5950', fontStyle: 'italic' }}>Requires home/late-night QR scan to exchange socials</span>
                       <div onClick={() => simulateQRScanHandshake(user.id)} style={{ fontSize: '9px', color: '#A68F81', background: 'rgba(245,230,211,0.05)', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer' }}>[Simulate QR Scan]</div>
                     </div>
                   )}
@@ -226,7 +247,7 @@ export default function OreetiSovereignEngine() {
           </div>
         )}
 
-        {/* TAB 3: PRESENCE */}
+        {/* TAB 3: PRESENCE PROFILE */}
         {activeTab === 'presence' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '3px', color: '#D9C3B0', textTransform: 'uppercase' }}>Identity Matrix</div>
@@ -242,7 +263,7 @@ export default function OreetiSovereignEngine() {
 
       </div>
 
-      {/* LOWER 40% CONTROL HUB */}
+      {/* LOWER 40% CONTROL HUB NAVIGATION SUITE */}
       <div style={{ height: '38%', background: 'linear-gradient(to top, #0E0908 90%, rgba(20, 13, 12, 0))', padding: '0 24px 24px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', boxSizing: 'border-box' }}>
         
         {showIntentModal && (
@@ -253,6 +274,7 @@ export default function OreetiSovereignEngine() {
           </div>
         )}
 
+        {/* Global Visibility Anchor */}
         <div style={{ padding: '12px 16px', borderRadius: '16px', backgroundColor: 'rgba(38,25,22,0.6)', border: '1px solid rgba(245, 230, 211, 0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
             <div style={{ fontSize: '12px', fontWeight: '500', color: '#F5E6D3' }}>Visible Broadcast Mode</div>
@@ -267,6 +289,7 @@ export default function OreetiSovereignEngine() {
           {systemStatus}
         </div>
 
+        {/* Dynamic Nav System */}
         <div style={{ height: '56px', backgroundColor: 'rgba(28, 18, 17, 0.9)', borderRadius: '16px', border: '1px solid rgba(245, 230, 211, 0.08)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', backdropFilter: 'blur(10px)' }}>
           <div onClick={() => setActiveTab('room')} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'room' ? '#F5E6D3' : '#6E5950', cursor: 'pointer', padding: '12px' }}>THE ROOM</div>
           <div onClick={() => setActiveTab('vault')} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'vault' ? '#F5E6D3' : '#6E5950', cursor: 'pointer', padding: '12px' }}>THE VAULT</div>
