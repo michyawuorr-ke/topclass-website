@@ -1,124 +1,154 @@
 'use client';
-import React, { useState } from 'react';
 
-export default function Home() {
-  const [activeField, setActiveField] = useState<string | null>(null);
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!, 
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+export default function Page() {
+  const [sessionCode, setSessionCode] = useState('OFFLINE');
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room');
+    if (room) {
+      setSessionCode(room.toUpperCase());
+    }
+  }, []);
+
+  const handleSyncTrigger = () => {
+    setIsConnecting(true);
+    setTimeout(() => setIsConnecting(false), 800);
+  };
 
   return (
-    <main className="relative min-h-screen bg-[#1C1613] text-[#F7F4EF] flex flex-col justify-between overflow-hidden font-sans select-none antialiased">
+    <div style={{
+      margin: 0,
+      padding: 0,
+      width: '100vw',
+      height: '100vh',
+      backgroundColor: '#1A1110',
+      color: '#F9F6F0',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      overflow: 'hidden',
+      boxSizing: 'border-box'
+    }}>
       
-      {/* Dynamic Ambient Canopy (Upper 60%) */}
-      <div className="relative flex-1 flex flex-col justify-center px-8 pt-16 pb-8 max-w-md mx-auto w-full z-10 transition-all duration-700">
-        
-        {/* Living Aura Engine - Dynamic Glowing Core */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full bg-gradient-to-tr from-[#4A3B32] to-[#2C221E] opacity-30 blur-[60px] pointer-events-none mix-blend-screen animate-[pulse_8s_infinite_ease-in-out]" />
-        
-        <div className="relative space-y-4 border-l-[3px] border-[#4A3B32]/40 pl-6 transition-transform duration-500 transform translate-y-0">
-          <div className="flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-[#F2ECE7] animate-ping opacity-75" />
-            <p className="text-[11px] uppercase tracking-[0.35em] text-[#F2ECE7]/60 font-semibold">System Active</p>
+      {/* UPPER 60%: Identity Canvas */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: '40px 24px',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '320px',
+          backgroundColor: 'rgba(44, 31, 28, 0.6)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderRadius: '24px',
+          padding: '32px 24px',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(244, 231, 219, 0.1)',
+          border: '1px solid rgba(244, 231, 219, 0.05)'
+        }}>
+          <div style={{
+            fontSize: '12px',
+            textTransform: 'uppercase',
+            letterSpacing: '3px',
+            color: '#D4C3B3',
+            marginBottom: '16px'
+          }}>
+            Identity Node
           </div>
-          
-          <h1 className="text-4xl font-extralight tracking-tight leading-none text-[#F7F4EF]">
-            Topclass <span className="font-serif italic text-[#F2ECE7] font-normal block mt-1">Experience</span>
+          <h1 style={{
+            fontSize: '28px',
+            fontWeight: '300',
+            letterSpacing: '-0.5px',
+            margin: '0 0 8px 0',
+            color: '#F5E6D3'
+          }}>
+            Oreeti
           </h1>
-          
-          <p className="text-sm text-[#F2ECE7]/60 leading-relaxed font-light max-w-[260px] pt-2">
-            Initialize your identity node to manifest a persistent cryptographic operational presence.
+          <p style={{
+            fontSize: '14px',
+            color: '#9C8A7C',
+            margin: 0,
+            lineHeight: '1.5'
+          }}>
+            Presence Engine Active
           </p>
         </div>
       </div>
 
-      {/* Layered Kinetic Card Architecture (Bottom 40% Ergonomic Thumb Zone) */}
-      <div className="relative h-[46vh] bg-gradient-to-b from-[#FDFDFD] to-[#F7F4EF] text-[#2C221E] rounded-t-[2.75rem] shadow-[0_-25px_60px_rgba(28,22,19,0.25)] border-t border-[#F2ECE7]/80 px-8 pt-8 pb-10 flex flex-col justify-between max-w-md mx-auto w-full z-20 transition-all duration-500">
-        
-        {/* Kinetic Accent Bar */}
-        <div className="w-12 h-1 bg-[#2C221E]/10 rounded-full mx-auto -mt-2 mb-6" />
-
-        {/* Structured Field Modules */}
-        <div className="space-y-4 flex-1 overflow-y-auto pr-1">
-          
-          {/* Full Name Field */}
-          <div 
-            className={`group relative rounded-xl p-3 border transition-all duration-300 ${
-              activeField === 'name' 
-                ? 'bg-white border-[#2C221E] shadow-[0_4px_20px_rgba(44,34,30,0.06)]' 
-                : 'bg-[#F2ECE7]/40 border-transparent hover:bg-[#F2ECE7]/60'
-            }`}
-          >
-            <label className="block text-[10px] uppercase tracking-wider text-[#2C221E]/50 font-bold transition-colors duration-300 group-hover:text-[#2C221E]/70">Full Name</label>
-            <input 
-              type="text" 
-              placeholder="e.g. Alexander Vance"
-              onFocus={() => setActiveField('name')}
-              onBlur={() => setActiveField(null)}
-              className="w-full bg-transparent border-none p-0 pt-1 text-sm text-[#2C221E] focus:outline-none placeholder-[#2C221E]/30 font-semibold"
-            />
+      {/* LOWER 40%: Ergonomic Thumb Zone */}
+      <div style={{
+        height: '40%',
+        background: 'linear-gradient(to top, #120A09 80%, rgba(26, 17, 16, 0))',
+        padding: '0 24px 40px 24px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        boxSizing: 'border-box'
+      }}>
+        <div style={{
+          width: '100%',
+          textAlign: 'center',
+          marginBottom: '24px'
+        }}>
+          <div style={{ fontSize: '11px', color: '#7A695C', letterSpacing: '2px', textTransform: 'uppercase' }}>
+            Current Node Anchor
           </div>
-
-          {/* Professional Title Field */}
-          <div 
-            className={`group relative rounded-xl p-3 border transition-all duration-300 ${
-              activeField === 'title' 
-                ? 'bg-white border-[#2C221E] shadow-[0_4px_20px_rgba(44,34,30,0.06)]' 
-                : 'bg-[#F2ECE7]/40 border-transparent hover:bg-[#F2ECE7]/60'
-            }`}
-          >
-            <label className="block text-[10px] uppercase tracking-wider text-[#2C221E]/50 font-bold">Professional Title</label>
-            <input 
-              type="text" 
-              placeholder="e.g. Principal Systems Designer"
-              onFocus={() => setActiveField('title')}
-              onBlur={() => setActiveField(null)}
-              className="w-full bg-transparent border-none p-0 pt-1 text-sm text-[#2C221E] focus:outline-none placeholder-[#2C221E]/30 font-semibold"
-            />
+          <div style={{
+            fontSize: '20px',
+            fontWeight: '400',
+            color: sessionCode !== 'OFFLINE' ? '#E6C594' : '#7A695C',
+            marginTop: '6px',
+            letterSpacing: '1px'
+          }}>
+            {sessionCode}
           </div>
-
-          {/* Split Domain & Intent row wrapped in structured spacing */}
-          <div className="grid grid-cols-2 gap-3">
-            <div 
-              className={`group relative rounded-xl p-3 border transition-all duration-300 ${
-                activeField === 'domain' 
-                  ? 'bg-white border-[#2C221E] shadow-[0_4px_20px_rgba(44,34,30,0.06)]' 
-                  : 'bg-[#F2ECE7]/40 border-transparent hover:bg-[#F2ECE7]/60'
-              }`}
-            >
-              <label className="block text-[10px] uppercase tracking-wider text-[#2C221E]/50 font-bold">Focus Domain</label>
-              <input 
-                type="text" 
-                placeholder="Architectural"
-                onFocus={() => setActiveField('domain')}
-                onBlur={() => setActiveField(null)}
-                className="w-full bg-transparent border-none p-0 pt-1 text-xs text-[#2C221E] focus:outline-none placeholder-[#2C221E]/30 font-semibold"
-              />
-            </div>
-
-            <div 
-              className={`group relative rounded-xl p-3 border transition-all duration-300 ${
-                activeField === 'intent' 
-                  ? 'bg-white border-[#2C221E] shadow-[0_4px_20px_rgba(44,34,30,0.06)]' 
-                  : 'bg-[#F2ECE7]/40 border-transparent hover:bg-[#F2ECE7]/60'
-              }`}
-            >
-              <label className="block text-[10px] uppercase tracking-wider text-[#2C221E]/50 font-bold">Current Intent</label>
-              <input 
-                type="text" 
-                placeholder="Sourcing Nodes"
-                onFocus={() => setActiveField('intent')}
-                onBlur={() => setActiveField(null)}
-                className="w-full bg-transparent border-none p-0 pt-1 text-xs text-[#2C221E] focus:outline-none placeholder-[#2C221E]/30 font-semibold"
-              />
-            </div>
-          </div>
-
         </div>
 
-        {/* Intelligent Feedback Action Trigger */}
-        <button className="w-full bg-[#2C221E] text-[#F7F4EF] text-xs uppercase tracking-[0.15em] py-4 rounded-xl font-bold shadow-xl hover:bg-[#4A3B32] active:bg-[#1C1613] active:scale-[0.99] transition-all duration-300 mt-4 outline-none">
-          Save & Broadcast Node
-        </button>
-
+        <div 
+          onClick={handleSyncTrigger}
+          style={{
+            width: '100%',
+            maxWidth: '300px',
+            height: '56px',
+            backgroundColor: isConnecting ? '#3D2A25' : '#231614',
+            border: '1px solid #4A3530',
+            borderRadius: '16px',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+          }}
+        >
+          <span style={{
+            fontSize: '15px',
+            letterSpacing: '1px',
+            fontWeight: '400',
+            color: '#F5E6D3'
+          }}>
+            {isConnecting ? 'Establishing Link...' : 'Scan Proximity Field'}
+          </span>
+        </div>
       </div>
-    </main>
+
+    </div>
   );
 }
