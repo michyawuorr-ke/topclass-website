@@ -226,7 +226,6 @@ export default function OreetiSovereignEngine() {
         boxSizing: 'border-box' 
       }}>
         
-        {/* Intent Modal sliding up precisely inside the lower zone */}
         {showIntentModal && (
           <div style={{ backgroundColor: '#140D10', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '20px', padding: '16px' }}>
             <div style={{ fontSize: '10px', color: '#D9C3B0', marginBottom: '6px', letterSpacing: '1px' }}>MANDATORY SESSION INTENT</div>
@@ -240,14 +239,14 @@ export default function OreetiSovereignEngine() {
           {systemStatus}
         </div>
 
-        {/* Level 2: Visible Broadcast Toggle Control (Shifted Upwards) */}
+        {/* Level 2: Visible Broadcast Toggle Control - TYPO RESOLVED HERE */}
         <div style={{ 
           padding: '14px 18px', 
           borderRadius: '16px', 
           backgroundColor: 'rgba(20, 13, 12, 0.3)', 
           border: '1px solid rgba(245, 230, 211, 0.04)', 
           display: 'flex', 
-          justify: 'space-between', 
+          justifyContent: 'space-between', 
           alignItems: 'center'
         }}>
           <div>
