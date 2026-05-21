@@ -12,6 +12,8 @@ interface Networker {
   ring_color: string;
   timestamp: string;
   contact_cleared: boolean;
+  email?: string;
+  phone?: string;
 }
 
 export default function OreetiSovereignEngine() {
@@ -32,10 +34,32 @@ export default function OreetiSovereignEngine() {
   const [showIntentModal, setShowIntentModal] = useState(false);
   const [currentUrl, setCurrentUrl] = useState('');
 
-  // Enhanced Mock Data to feed the 48hr Momentum Archive Engine
+  // Hydrated mock network links to pass security clearance checks
   const [vaultUsers, setVaultUsers] = useState<Networker[]>([
-    { id: '1', name: 'Alex', title: 'Design Director', domain: 'Modular Structures & Container Housing', intent: 'Sourcing 40ft engineering schematics', ring_color: '#E6A15C', timestamp: new Date(Date.now() - 10 * 3600 * 1000).toISOString(), contact_cleared: false },
-    { id: '2', name: 'Elena', title: 'Materials Curator', domain: 'Organic Finishes & Silk Textiles', intent: 'Curating showroom color blueprints', ring_color: '#D9C3B0', timestamp: new Date(Date.now() - 52 * 3600 * 1000).toISOString(), contact_cleared: true }
+    { 
+      id: '1', 
+      name: 'Alex', 
+      title: 'Design Director', 
+      domain: 'Modular Structures & Container Housing', 
+      intent: 'Sourcing 40ft engineering schematics', 
+      ring_color: '#E6A15C', 
+      timestamp: new Date(Date.now() - 10 * 3600 * 1000).toISOString(), 
+      contact_cleared: false,
+      email: 'alex@modularmatrix.io',
+      phone: '+254700000000'
+    },
+    { 
+      id: '2', 
+      name: 'Elena', 
+      title: 'Materials Curator', 
+      domain: 'Organic Finishes & Silk Textiles', 
+      intent: 'Curating showroom color blueprints', 
+      ring_color: '#D9C3B0', 
+      timestamp: new Date(Date.now() - 52 * 3600 * 1000).toISOString(), 
+      contact_cleared: true,
+      email: 'elena@silksurface.com',
+      phone: '+254711111111'
+    }
   ]);
 
   const [vaultNotes, setVaultNotes] = useState<Record<string, string>>({
@@ -78,6 +102,30 @@ export default function OreetiSovereignEngine() {
     setSystemStatus('Tier 2 Verification Passed');
   };
 
+  // Dynamic Native Client-Side vCard Generator Engine
+  const downloadVCard = (user: Networker) => {
+    const vcardData = [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      `FN:${user.name}`,
+      `ORG:${user.domain}`,
+      `TITLE:${user.title}`,
+      `EMAIL;TYPE=PREF,INTERNET:${user.email || ''}`,
+      `TEL;TYPE=CELL:${user.phone || ''}`,
+      'END:VCARD'
+    ].join('\n');
+
+    const blob = new Blob([vcardData], { type: 'text/vcard;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${user.name.replace(/\s+/g, '_')}_Identity_Node.vcf`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setSystemStatus(`Downloaded ${user.name}'s vCard Node`);
+  };
+
   const isWithin48Hours = (timestampString: string) => {
     const hours = (Date.now() - new Date(timestampString).getTime()) / (1000 * 60 * 60);
     return hours <= 48;
@@ -89,15 +137,13 @@ export default function OreetiSovereignEngine() {
     return `${left}h remaining`;
   };
 
-  const qrCodeUrl = `https://chart.googleapis.com/chart?cht=qr&chs=200x200&chl=${encodeURIComponent(currentUrl)}&chco=F5E6D3&chf=bg,s,65432100`;
-
   return (
     <div style={{
       margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#140D0C', color: '#FDFBF7',
       fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box'
     }}>
       
-      {/* UPPER 60%: Interaction Area */}
+      {/* UPPER 60%: Scrollable Interaction Area */}
       <div style={{ flex: 1, padding: '24px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         
         {/* TAB 1: THE ROOM */}
@@ -112,7 +158,7 @@ export default function OreetiSovereignEngine() {
           </div>
         )}
 
-        {/* TAB 2: THE VAULT (Premium Redesign) */}
+        {/* TAB 2: THE VAULT (Tier 2 Verification Expansion Loop) */}
         {activeTab === 'vault' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div>
@@ -122,66 +168,74 @@ export default function OreetiSovereignEngine() {
               <div style={{ fontSize: '12px', color: '#6E5950', fontWeight: '300' }}>Decentralized Proximity Archive</div>
             </div>
             
-            {/* 48-Hour Momentum Cluster */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ fontSize: '10px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600', textTransform: 'uppercase' }}>
                 ⚡ 48-Hour Momentum Engine
               </div>
               
-              {vaultUsers.filter(u => isWithin48Hours(u.timestamp)).map(user => (
+              {vaultUsers.map(user => (
                 <div key={user.id} style={{
                   backgroundColor: 'rgba(38, 25, 22, 0.45)', backdropFilter: 'blur(30px)', borderRadius: '24px', padding: '24px',
                   border: `1px solid ${user.ring_color}`, boxShadow: '0 15px 35px rgba(0,0,0,0.4), inset 0 1px 1px rgba(245, 230, 211, 0.1)'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                     <div style={{ fontSize: '20px', fontWeight: '300', color: '#F5E6D3' }}>{user.name}</div>
-                    <div style={{ fontSize: '11px', color: '#E6A15C', letterSpacing: '0.5px', background: 'rgba(230, 161, 92, 0.1)', padding: '4px 10px', borderRadius: '20px' }}>
-                      {getRemainingHours(user.timestamp)}
-                    </div>
+                    {isWithin48Hours(user.timestamp) && (
+                      <div style={{ fontSize: '11px', color: '#E6A15C', letterSpacing: '0.5px', background: 'rgba(230, 161, 92, 0.1)', padding: '4px 10px', borderRadius: '20px' }}>
+                        {getRemainingHours(user.timestamp)}
+                      </div>
+                    )}
                   </div>
                   
                   <div style={{ fontSize: '12px', color: '#A68F81', marginTop: '4px' }}>{user.title}</div>
                   <div style={{ fontSize: '11px', color: '#6E5950', marginTop: '2px', fontStyle: 'italic' }}>{user.domain}</div>
                   
-                  {/* Contextual Notes Tool Scratchpad */}
-                  <div style={{ marginTop: '16px', borderTop: '1px solid rgba(245, 230, 211, 0.06)', paddingTop: '12px' }}>
-                    <div style={{ fontSize: '9px', color: '#6E5950', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '6px' }}>Private Interaction Anchor Node</div>
-                    <textarea 
-                      value={vaultNotes[user.id] || ''}
-                      onChange={(e) => setVaultNotes({...vaultNotes, [user.id]: e.target.value})}
-                      placeholder="Type private encounter notes... (Encrypted local storage only)"
-                      style={{ width: '100%', background: '#0E0908', border: '1px solid rgba(245, 230, 211, 0.05)', borderRadius: '12px', color: '#D9C3B0', padding: '10px', fontSize: '12px', resize: 'none', height: '48px', outline: 'none', fontFamily: 'inherit' }}
-                    />
-                  </div>
+                  {/* REVEAL CHANNELS IF TIER 2 IS ACTIVE */}
+                  {user.contact_cleared ? (
+                    <div style={{
+                      marginTop: '16px', padding: '16px', borderRadius: '16px', backgroundColor: 'rgba(20, 13, 12, 0.5)',
+                      border: '1px solid rgba(140, 230, 92, 0.15)', display: 'flex', flexDirection: 'column', gap: '12px'
+                    }}>
+                      <div style={{ fontSize: '9px', color: '#8CE65C', letterSpacing: '1.5px', fontWeight: '600' }}>✓ VERIFIED UTILITY NODE UNLOCKED</div>
+                      
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <a href={`mailto:${user.email}`} style={{ flex: 1, textDecoration: 'none', textAlign: 'center', padding: '10px', background: '#1C1211', border: '1px solid rgba(245,230,211,0.08)', borderRadius: '10px', fontSize: '12px', color: '#F5E6D3' }}>
+                          EMAIL
+                        </a>
+                        <a href={`tel:${user.phone}`} style={{ flex: 1, textDecoration: 'none', textAlign: 'center', padding: '10px', background: '#1C1211', border: '1px solid rgba(245,230,211,0.08)', borderRadius: '10px', fontSize: '12px', color: '#F5E6D3' }}>
+                          DIAL NODE
+                        </a>
+                      </div>
 
-                  {/* Tier 2 Security Action Anchor */}
-                  <div onClick={() => !user.contact_cleared && handleTier2Clearance(user.id)} style={{
-                    marginTop: '14px', padding: '12px', borderRadius: '14px', textAlign: 'center', fontSize: '11px', letterSpacing: '1.5px', fontWeight: '500', cursor: user.contact_cleared ? 'default' : 'pointer',
-                    backgroundColor: user.contact_cleared ? 'rgba(140, 230, 92, 0.08)' : 'rgba(20, 13, 12, 0.6)',
-                    border: user.contact_cleared ? '1px solid rgba(140, 230, 92, 0.2)' : '1px solid rgba(245, 230, 211, 0.12)',
-                    color: user.contact_cleared ? '#8CE65C' : '#F5E6D3'
-                  }}>
-                    {user.contact_cleared ? '✓ TIER 2 CHANNELS UNLOCKED' : 'REQUEST CONTACT DETAILS'}
-                  </div>
-                </div>
-              ))}
-            </div>
+                      <div onClick={() => downloadVCard(user)} style={{
+                        padding: '12px', textAlign: 'center', background: 'linear-gradient(135deg, #2E1E1B, #140D0C)',
+                        border: '1px solid rgba(230, 161, 92, 0.2)', borderRadius: '12px', fontSize: '11px', letterSpacing: '1px', color: '#E6A15C', cursor: 'pointer', fontWeight: '600'
+                      }}>
+                        DOWNLOAD DIGITAL CARD NODE
+                      </div>
+                    </div>
+                  ) : (
+                    /* Context Note Box hidden once verified to save premium mobile grid room */
+                    <div style={{ marginTop: '16px', borderTop: '1px solid rgba(245, 230, 211, 0.06)', paddingTop: '12px' }}>
+                      <textarea 
+                        value={vaultNotes[user.id] || ''}
+                        onChange={(e) => setVaultNotes({...vaultNotes, [user.id]: e.target.value})}
+                        placeholder="Type private encounter notes..."
+                        style={{ width: '100%', background: '#0E0908', border: '1px solid rgba(245, 230, 211, 0.05)', borderRadius: '12px', color: '#D9C3B0', padding: '10px', fontSize: '12px', resize: 'none', height: '40px', outline: 'none', fontFamily: 'inherit' }}
+                      />
+                    </div>
+                  )}
 
-            {/* Permanent Archive Cluster */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
-              <div style={{ fontSize: '10px', color: '#6E5950', letterSpacing: '2px', textTransform: 'uppercase' }}>
-                📁 Vault History Archive
-              </div>
-              {vaultUsers.filter(u => !isWithin48Hours(u.timestamp)).map(user => (
-                <div key={user.id} style={{
-                  backgroundColor: 'rgba(20, 13, 12, 0.4)', borderRadius: '18px', padding: '16px',
-                  border: '1px solid rgba(245, 230, 211, 0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: 0.75
-                }}>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: '300', color: '#A68F81' }}>{user.name}</div>
-                    <div style={{ fontSize: '11px', color: '#6E5950' }}>{user.title}</div>
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#8CE65C' }}>Secured</div>
+                  {/* Operational Tier 2 Controller Button */}
+                  {!user.contact_cleared && (
+                    <div onClick={() => handleTier2Clearance(user.id)} style={{
+                      marginTop: '12px', padding: '12px', borderRadius: '14px', textAlign: 'center', fontSize: '11px', letterSpacing: '1.5px', fontWeight: '500', cursor: 'pointer',
+                      backgroundColor: 'rgba(20, 13, 12, 0.6)', border: '1px solid rgba(245, 230, 211, 0.12)', color: '#F5E6D3'
+                    }}>
+                      REQUEST CONTACT DETAILS
+                    </div>
+                  )}
+
                 </div>
               ))}
             </div>
@@ -213,16 +267,12 @@ export default function OreetiSovereignEngine() {
                 </div>
               </div>
             </div>
-            <div style={{ padding: '16px', borderRadius: '20px', backgroundColor: 'rgba(38,25,22,0.2)', border: '1px solid rgba(245, 230, 211, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div><div style={{ fontSize: '13px', color: '#F5E6D3' }}>Visible Mode</div></div>
-              <div onClick={handleVisibilityToggle} style={{ width: '46px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#2E1E1B', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}><div style={{ width: '18px', height: '18px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '25px' : '3px', transition: '0.2s' }} /></div>
-            </div>
           </div>
         )}
 
       </div>
 
-      {/* LOWER 40%: Strict Control Hub */}
+      {/* LOWER 40%: Control Hub */}
       <div style={{
         height: '38%', background: 'linear-gradient(to top, #0E0908 85%, rgba(20, 13, 12, 0))',
         padding: '0 24px 32px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', boxSizing: 'border-box'
@@ -239,7 +289,7 @@ export default function OreetiSovereignEngine() {
           {systemStatus}
         </div>
 
-        {/* 3-Tab Dock */}
+        {/* 3-Tab Navigation Dock */}
         <div style={{
           height: '64px', backgroundColor: 'rgba(28, 18, 17, 0.85)', borderRadius: '20px', border: '1px solid rgba(245, 230, 211, 0.08)',
           display: 'flex', justifyContent: 'space-around', alignItems: 'center', backdropFilter: 'blur(10px)'
