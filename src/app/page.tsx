@@ -44,6 +44,9 @@ export default function OreetiAmbientEngine() {
   const [incomingHandshakes, setIncomingHandshakes] = useState<any[]>([]);
   const [incomingTier2Requests, setIncomingTier2Requests] = useState<any[]>([]);
 
+  // Spam mitigation tracking state (stores target user IDs that are currently locked)
+  const [throttledConnections, setThrottledConnections] = useState<Record<string, boolean>>({});
+
   const [selectedVaultItem, setSelectedVaultItem] = useState<any | null>(null);
   const [reqPhoneCheckbox, setReqPhoneCheckbox] = useState(false);
   const [reqLinkedinCheckbox, setReqLinkedinCheckbox] = useState(false);
@@ -103,28 +106,36 @@ export default function OreetiAmbientEngine() {
     return () => clearInterval(intervalSync);
   }, [isVisible, userId]);
 
-  // Unified dynamic sync processor
   const syncDatabaseFeeds = async () => {
     if (!userId) return;
     
-    // 1. Fetch vault connections (Filter out self-reflections)
+    // 1. Fetch authenticated vault connections (No self listings)
     const { data: vaultData } = await supabase
       .from('vault_connections')
       .select('*')
       .eq('user_id', userId)
-      .not('connected_user_id', 'eq', userId); // Strictly prevents self-listing
+      .not('connected_user_id', 'eq', userId);
     if (vaultData) setVaultUsers(vaultData);
 
-    // 2. Fetch incoming discovery handshake requests
+    // 2. Fetch pending discovery handshakes
     const { data: discoveryRequests } = await supabase
       .from('vault_connections')
       .select('*')
       .eq('connected_user_id', userId)
       .eq('handshake_accepted', false)
       .eq('qr_scanned', false);
-    if (discoveryRequests) setIncomingHandshakes(discoveryRequests);
+    
+    if (discoveryRequests) {
+      // 3-Minute Self-Destruct Filter Engine
+      const activeValidRequests = discoveryRequests.filter(req => {
+        const createdTime = new Date(req.created_at || Date.now()).getTime();
+        const absoluteAgeInSeconds = (Date.now() - createdTime) / 1000;
+        return absoluteAgeInSeconds < 180; // Only retain if under 3 minutes old
+      });
+      setIncomingHandshakes(activeValidRequests);
+    }
 
-    // 3. Fetch incoming Tier-2 elevation requests
+    // 3. Fetch Tier-2 access requests
     const { data: t2Requests } = await supabase
       .from('vault_connections')
       .select('*')
@@ -138,32 +149,44 @@ export default function OreetiAmbientEngine() {
     }
   };
 
-  // Real-time Database Socket Pipeline
+  // Immediate Real-Time Postgres Event Broker
   useEffect(() => {
     if (!userId) return;
 
-    // Run initial sync data population
     syncDatabaseFeeds();
 
-    // Establish immediate streaming subscription channel
     const absolutePresenceSubscription = supabase
       .channel('realtime_aura_handshakes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'vault_connections' },
         () => {
-          syncDatabaseFeeds(); // Instantly re-syncs arrays on any row update/insert
+          syncDatabaseFeeds();
         }
       )
       .subscribe();
 
+    // Secondary countdown clock execution to clear expired requests in real-time
+    const lifespanCheckClock = setInterval(syncDatabaseFeeds, 5000);
+
     return () => {
       supabase.removeChannel(absolutePresenceSubscription);
+      clearInterval(lifespanCheckClock);
     };
   }, [userId, selectedVaultItem]);
 
   const triggerDiscoveryHandshake = async (targetUser: Networker) => {
-    if (targetUser.id === userId) return; // Guard logic against self-handshakes
+    if (targetUser.id === userId) return;
+    
+    // Spam Prevention Check
+    if (throttledConnections[targetUser.id]) {
+      setSystemAlert("Connection throttle active. Please wait.");
+      setTimeout(() => setSystemAlert(null), 3000);
+      return;
+    }
+
+    // Activate structural anti-spam lock for this peer ID
+    setThrottledConnections(prev => ({ ...prev, [targetUser.id]: true }));
     setRoomUsers(prev => prev.filter(u => u.id !== targetUser.id));
 
     await supabase.from('vault_connections').insert({ 
@@ -181,6 +204,11 @@ export default function OreetiAmbientEngine() {
     
     setSystemAlert(`Handshake requested with ${targetUser.name.split(' ')[0]}`);
     setTimeout(() => setSystemAlert(null), 3000);
+
+    // Release spam lock after 10 seconds to allow retry if naturally necessary
+    setTimeout(() => {
+      setThrottledConnections(prev => ({ ...prev, [targetUser.id]: false }));
+    }, 10000);
   };
 
   const acceptDiscoveryHandshake = async (request: any) => {
@@ -205,6 +233,7 @@ export default function OreetiAmbientEngine() {
 
     setSystemAlert("Handshake accepted mutually.");
     setTimeout(() => setSystemAlert(null), 3000);
+    setActiveTab('vault'); // Auto-focus Vault view when accepted
   };
 
   const declineDiscoveryHandshake = async (reqId: number) => {
@@ -358,10 +387,42 @@ export default function OreetiAmbientEngine() {
   const isCardEmpty = !fullName.trim() && !role.trim() && !domain.trim();
 
   return (
-    <div style={{ margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#0A0605', color: '#FDFBF7', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box' }}>
+    <div style={{ margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#0A0605', color: '#FDFBF7', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box', position: 'relative' }}>
       
       <Analytics />
 
+      {/* --- GLOBAL TAKEOVER OVERLAY SCREEN LAYER --- */}
+      {incomingHandshakes.length > 0 && (
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(10, 6, 5, 0.96)', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '24px', boxSizing: 'border-box', backdropFilter: 'blur(10px)' }}>
+          <div style={{ width: '100%', maxWidth: '360px', backgroundColor: '#140D0C', border: '1px solid #E6A15C', borderRadius: '28px', padding: '40px 32px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600' }}>INCOMING HANDSHAKE CONNECTION</span>
+              <span style={{ fontSize: '9px', color: '#8A7366', fontWeight: '500' }}>EXPIRING...</span>
+            </div>
+            <div style={{ fontSize: '26px', color: '#FDFBF7', fontWeight: '300', letterSpacing: '-0.5px' }}>{incomingHandshakes[0].name}</div>
+            <div style={{ fontSize: '13px', color: '#E6A15C', marginBottom: '4px' }}>{incomingHandshakes[0].title}</div>
+            <div style={{ fontSize: '12px', color: '#8A7366', fontStyle: 'italic', marginBottom: '24px', lineHeight: '1.5' }}>
+              "Wants to sync profiles with you near {incomingHandshakes[0].current_station}."
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button 
+                onClick={() => acceptDiscoveryHandshake(incomingHandshakes[0])} 
+                style={{ width: '100%', padding: '16px', background: '#E6A15C', color: '#0A0605', fontWeight: '600', border: 'none', borderRadius: '14px', cursor: 'pointer', fontSize: '12px', letterSpacing: '1px' }}
+              >
+                ACCEPT AND OPEN VAULT
+              </button>
+              <button 
+                onClick={() => declineDiscoveryHandshake(incomingHandshakes[0].id)} 
+                style={{ width: '100%', padding: '14px', background: 'transparent', color: '#8A7366', border: '1px solid rgba(138, 115, 102, 0.2)', borderRadius: '14px', cursor: 'pointer', fontSize: '11px', letterSpacing: '0.5px' }}
+              >
+                BYPASS DISCOVERY
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Persistent Toast Matrix Alerts */}
       <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999 }}>
         {systemAlert && (
           <div style={{ background: '#1C1210', border: '1px solid #E6A15C', borderRadius: '12px', padding: '14px 16px', color: '#F5E6D3', fontSize: '11px', textAlign: 'center' }}>
@@ -394,17 +455,18 @@ export default function OreetiAmbientEngine() {
               {roomUsers.map(user => (
                 <div key={user.id} style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#110D0C', border: '1px solid rgba(230,161,92,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box' }}>
                   <div style={{ flex: 1, paddingRight: '12px' }}>
-                    <div style={{ fontSize: '17px', fontWeight: '400', color: '#F5E6D3' }}>{user.name ? user.name.split(' ')[0] : 'Peer'}</div>
+                    <div style={{ fontSize: '17px', fontWeight: '400', color: '#F5E6D3' }}>{user.name}</div>
                     <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '4px' }}>{user.title}</div>
                     <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '10px', fontStyle: 'italic' }}>"{user.intent}"</div>
                   </div>
                   
-                  <div 
+                  <button 
+                    disabled={throttledConnections[user.id]}
                     onClick={() => triggerDiscoveryHandshake(user)} 
-                    style={{ padding: '12px 18px', backgroundColor: 'rgba(230,161,92,0.06)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', borderRadius: '10px', fontSize: '10px', fontWeight: '600', cursor: 'pointer', letterSpacing: '1px' }}
+                    style={{ padding: '12px 18px', backgroundColor: throttledConnections[user.id] ? 'rgba(138,115,102,0.05)' : 'rgba(230,161,92,0.06)', border: throttledConnections[user.id] ? '1px solid rgba(138,115,102,0.1)' : '1px solid rgba(230,161,92,0.2)', color: throttledConnections[user.id] ? '#8A7366' : '#E6A15C', borderRadius: '10px', fontSize: '10px', fontWeight: '600', cursor: throttledConnections[user.id] ? 'not-allowed' : 'pointer', letterSpacing: '1px' }}
                   >
-                    CONNECT
-                  </div>
+                    {throttledConnections[user.id] ? "SENT" : "CONNECT"}
+                  </button>
                 </div>
               ))}
             </div>
@@ -426,7 +488,7 @@ export default function OreetiAmbientEngine() {
                 {!selectedVaultItem.qr_scanned ? (
                   <>
                     <div style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '2px', fontWeight: '600', marginTop: '12px' }}>HANDSHAKE MUTUAL (PENDING PHYSICAL SCAN)</div>
-                    <div style={{ fontSize: '24px', color: '#FDFBF7', fontWeight: '300' }}>{selectedVaultItem.name.split(' ')[0]}</div>
+                    <div style={{ fontSize: '24px', color: '#FDFBF7', fontWeight: '300' }}>{selectedVaultItem.name}</div>
                     <div style={{ fontSize: '14px', color: '#E6A15C' }}>{selectedVaultItem.title}</div>
                     <div style={{ background: 'rgba(230,161,92,0.02)', padding: '16px', borderRadius: '12px', fontSize: '11px', color: '#8A7366', border: '1px dashed rgba(230,161,92,0.1)' }}>
                       🔒 Full Identity domain mapping hidden until a physical QR code scanner validation matching is executed.
@@ -489,7 +551,7 @@ export default function OreetiAmbientEngine() {
                     <div key={i} onClick={() => setSelectedVaultItem(user)} style={{ backgroundColor: '#110D0C', borderRadius: '20px', padding: '24px', border: '1px solid rgba(230,161,92,0.02)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <div style={{ fontSize: '16px', fontWeight: '400', color: '#FDFBF7' }}>
-                          {user.qr_scanned ? user.name : `${user.name.split(' ')[0]} (Handshake Accepted)`}
+                          {user.qr_scanned ? user.name : `${user.name} (Awaiting QR Scan)`}
                         </div>
                         <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '4px' }}>{user.title}</div>
                       </div>
@@ -507,18 +569,6 @@ export default function OreetiAmbientEngine() {
         {activeTab === 'presence' && (
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: '24px', alignItems: 'center' }}>
             
-            {incomingHandshakes.map((req, idx) => (
-              <div key={idx} style={{ width: '100%', maxWidth: '350px', backgroundColor: '#140D0C', border: '2px solid #E6A15C', borderRadius: '20px', padding: '24px', boxSizing: 'border-box', boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}>
-                <div style={{ fontSize: '10px', color: '#E6A15C', letterSpacing: '1px', fontWeight: '600', marginBottom: '4px' }}>INCOMING CONNECT REQUEST</div>
-                <div style={{ fontSize: '14px', color: '#F5E6D3', marginBottom: '4px' }}><strong>{req.name.split(' ')[0]}</strong></div>
-                <div style={{ fontSize: '12px', color: '#8A7366', marginBottom: '18px' }}>{req.title}</div>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={() => acceptDiscoveryHandshake(req)} style={{ flex: 1, padding: '12px', background: '#E6A15C', color: '#0A0605', fontWeight: '600', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '11px', letterSpacing: '0.5px' }}>ACCEPT</button>
-                  <button onClick={() => declineDiscoveryHandshake(req.id)} style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)', color: '#8A7366', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '11px' }}>BYPASS</button>
-                </div>
-              </div>
-            ))}
-
             {incomingTier2Requests.map((req, idx) => (
               <div key={idx} style={{ width: '100%', maxWidth: '350px', backgroundColor: '#0D0E12', border: '1px solid #E6A15C', borderRadius: '20px', padding: '20px', boxSizing: 'border-box' }}>
                 <div style={{ fontSize: '12px', color: '#E6A15C', fontWeight: '600' }}>TIER-2 CREDENTIAL ROUTE INPUT</div>
