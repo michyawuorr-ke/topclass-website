@@ -81,7 +81,6 @@ export default function OreetiSovereignEngine() {
         .select('connected_user_id, name, title, domain')
         .eq('user_id', profile.id);
 
-      // RESOLVED TS1237 TYPE-CHECK: Upstream conversion sequence bypassing non-overlapping property checks
       if (!error && data) setVaultUsers(data as unknown as Networker[]);
     };
     fetchVaultConnections();
@@ -89,7 +88,7 @@ export default function OreetiSovereignEngine() {
 
   useEffect(() => {
     if (isScanning && activeTab === 'room') {
-      setSystemStatus('Opening optical camera hardware...');
+      setSystemStatus('Opening camera hardware...');
       
       setTimeout(() => {
         try {
@@ -101,7 +100,7 @@ export default function OreetiSovereignEngine() {
 
           scannerRef.current.render(
             async (decodedText) => {
-              setSystemStatus('Target identity token verified.');
+              setSystemStatus('Card token verified.');
               if (scannerRef.current) {
                 scannerRef.current.clear();
                 setIsScanning(false);
@@ -114,17 +113,17 @@ export default function OreetiSovereignEngine() {
               });
 
               if (!error) {
-                setSystemStatus('Identity secured directly to Vault.');
+                setSystemStatus('Card added directly to Vault.');
                 setActiveTab('vault');
               } else {
-                setSystemStatus('Connection bound successfully.');
+                setSystemStatus('Connection saved successfully.');
               }
             },
             () => {}
           );
         } catch (err) {
           console.error("Camera node failure:", err);
-          setSystemStatus('Camera hardware acquisition rejected.');
+          setSystemStatus('Camera hardware rejected.');
         }
       }, 300);
     }
@@ -198,7 +197,7 @@ export default function OreetiSovereignEngine() {
                 onClick={() => setIsScanning(!isScanning)} 
                 style={{ fontSize: '10px', color: '#E6A15C', border: '1px solid rgba(230,161,92,0.2)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', letterSpacing: '0.5px', fontWeight: '600', background: isScanning ? 'rgba(230,161,92,0.1)' : 'transparent' }}
               >
-                {isScanning ? 'CLOSE CAMERA' : 'SCAN MATRIX'}
+                {isScanning ? 'CLOSE CAMERA' : 'SCAN CARD'}
               </div>
             </div>
 
@@ -239,13 +238,13 @@ export default function OreetiSovereignEngine() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {vaultUsers.map((user, i) => (
                 <div key={i} style={{ backgroundColor: 'rgba(20, 13, 12, 0.4)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(230,161,92,0.08)' }}>
-                  <div style={{ fontSize: '16px', fontWeight: '500', color: '#FDFBF7' }}>{user.name || 'Verified Vault User'}</div>
+                  <div style={{ fontSize: '16px', fontWeight: '500', color: '#FDFBF7' }}>{user.name || 'Verified User'}</div>
                   <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '2px' }}>{user.title}</div>
                   <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '4px' }}>{user.domain}</div>
                 </div>
               ))}
               {vaultUsers.length === 0 && (
-                <div style={{ padding: '40px 0', textAlign: 'center', color: '#4E3C36', fontSize: '12px', fontStyle: 'italic' }}>Your vault database is empty. Scan an identity to instantly add them.</div>
+                <div style={{ padding: '40px 0', textAlign: 'center', color: '#4E3C36', fontSize: '12px', fontStyle: 'italic' }}>Your vault database is empty. Scan a card to instantly add them.</div>
               )}
             </div>
           </div>
@@ -290,10 +289,15 @@ export default function OreetiSovereignEngine() {
               )}
             </div>
 
-            {!isEditingProfile && (
+            {/* CONDITIONAL GENERATOR: Only active when user is live broadcasting */}
+            {!isEditingProfile && isVisible ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '16px', borderRadius: '16px', background: 'rgba(14, 9, 8, 0.4)', border: '1px solid rgba(245,230,211,0.02)' }}>
-                <img src={qrCodeUrl} alt="Secure Profile QR Node" style={{ width: '140px', height: '140px', borderRadius: '8px', display: 'block' }} />
-                <div style={{ fontSize: '9px', color: '#4E3C36', letterSpacing: '1px', textTransform: 'uppercase' }}>Your Spatial Scan Key</div>
+                <img src={qrCodeUrl} alt="Secure Profile QR Key" style={{ width: '140px', height: '140px', borderRadius: '8px', display: 'block' }} />
+                <div style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '500' }}>Your Live Scan Key</div>
+              </div>
+            ) : !isEditingProfile && (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', fontStyle: 'italic', maxWidth: '260px', lineHeight: '1.4' }}>
+                Your scan key is hidden. Flip the broadcast switch below to activate your card.
               </div>
             )}
 
