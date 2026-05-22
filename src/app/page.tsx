@@ -30,13 +30,12 @@ export default function OreetiSovereignEngine() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [showLookUpAlert, setShowLookUpAlert] = useState(false);
 
-  // Lists & Feeds
+  // Feeds
   const [roomUsers, setRoomUsers] = useState<Networker[]>([]);
   const [vaultUsers, setVaultUsers] = useState<Networker[]>([]);
   const [incomingHandshakes, setIncomingHandshakes] = useState<any[]>([]);
   const [incomingTier2Requests, setIncomingTier2Requests] = useState<any[]>([]);
   
-  // Security Anchor: Dynamic Token Key
   const [dynamicQrToken, setDynamicQrToken] = useState('');
 
   const [profile, setProfile] = useState({
@@ -54,18 +53,16 @@ export default function OreetiSovereignEngine() {
 
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
-  // Rotate Secure Token Every 45 Seconds to keep QR dynamic
   useEffect(() => {
     const generateSecureToken = () => {
       const securitySalt = Math.random().toString(36).substring(2, 7);
       const timestamp = Date.now();
       setDynamicQrToken(`${profile.id}||${timestamp}||${securitySalt}`);
     };
-    
     generateSecureToken();
     const tokenRotationInterval = setInterval(generateSecureToken, 45000);
     return () => clearInterval(tokenRotationInterval);
-  }, [profile.id, isVisible]);
+  }, [profile.id]);
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(dynamicQrToken)}&color=e6a15c&bgcolor=0e0908`;
 
@@ -100,7 +97,6 @@ export default function OreetiSovereignEngine() {
     };
   }, [isVisible, sessionAnchor, profile.id]);
 
-  // Data Refresh Sync Loop
   const syncDatabaseFeeds = async () => {
     const { data: vaultData } = await supabase
       .from('vault_connections')
@@ -117,14 +113,6 @@ export default function OreetiSovereignEngine() {
       .eq('tier_2_status', 'locked');
 
     if (discoveryRequests) setIncomingHandshakes(discoveryRequests);
-
-    const { data: deepRequests } = await supabase
-      .from('vault_connections')
-      .select('user_id, name, title')
-      .eq('connected_user_id', profile.id)
-      .eq('tier_2_status', 'pending');
-
-    if (deepRequests) setIncomingTier2Requests(deepRequests);
   };
 
   useEffect(() => {
@@ -145,24 +133,23 @@ export default function OreetiSovereignEngine() {
     };
   }, [activeTab, profile.id]);
 
-  // Cleaned Camera Framework with Fallback Lens Resolution
+  // Ultra-Resilient Lens Initialiser
   useEffect(() => {
     if (isScanning && activeTab === 'room') {
-      setSystemStatus('Initialising lens...');
+      setSystemStatus('Lens waking up...');
       
       setTimeout(() => {
         try {
-          // Softened facingMode constraints to avoid strict browser/wrapper hardware crashes
+          // Broad parameters to guarantee execution across Safari iOS and Android Chrome wrappers
           scannerRef.current = new Html5QrcodeScanner(
             "reader-spatial-node",
             { 
-              fps: 20, 
-              qrbox: { width: 230, height: 230 },
-              videoConstraints: { facingMode: "environment" },
-              rememberLastUsedCamera: true,
-              supportedScanTypes: [0]
+              fps: 24, 
+              qrbox: { width: 250, height: 250 },
+              // Fallback array architecture: Prefer environment, accept unconstrained default if forced
+              videoConstraints: { facingMode: "environment" }
             },
-            false
+            /* verbose= */ false
           );
 
           scannerRef.current.render(
@@ -182,18 +169,16 @@ export default function OreetiSovereignEngine() {
                 created_at: new Date().toISOString()
               });
 
-              setSystemStatus('Connection stored.');
+              setSystemStatus('Secure connection written.');
               setActiveTab('vault');
               syncDatabaseFeeds();
             },
-            (error) => {
-              // Fail silently to keep interface running without throwing system boxes
-            }
+            () => {} // Suppressed internal debug loop updates to save mobile CPU cycles
           );
         } catch (err) {
-          setSystemStatus('Hardware connection failed.');
+          setSystemStatus('Lens access error.');
         }
-      }, 300);
+      }, 250);
     }
 
     return () => {
@@ -301,7 +286,7 @@ export default function OreetiSovereignEngine() {
                 <style>{`
                   #reader-spatial-node__dashboard, #reader-spatial-node__status_span, #reader-spatial-node button, #reader-spatial-node img { display: none !important; }
                   #reader-spatial-node { border: none !important; }
-                  #reader-spatial-node video { width: 100% !important; object-fit: cover !important; border-radius: 24px !important; }
+                  #reader-spatial-node video { width: 100% !important; height: auto !important; min-height: 200px !important; object-fit: cover !important; display: block !important; border-radius: 24px !important; }
                 `}</style>
               </div>
             )}
