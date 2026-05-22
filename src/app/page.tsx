@@ -36,7 +36,6 @@ export default function OreetiAmbientEngine() {
   const [vaultUsers, setVaultUsers] = useState<any[]>([]);
   const [incomingHandshakes, setIncomingHandshakes] = useState<any[]>([]);
 
-  // Workflow Blueprint States
   const [scannedProfile, setScannedProfile] = useState<Networker | null>(null);
   const [establishedHandshake, setEstablishedHandshake] = useState<{ partnerName: string; station: string } | null>(null);
   
@@ -93,14 +92,13 @@ export default function OreetiAmbientEngine() {
   const syncDatabaseFeeds = async () => {
     if (!userId) return;
     
-    // Vault Feed
+    // Vault Feed - Pull scanning links and accepted handshakes
     const { data: vaultData } = await supabase
       .from('vault_connections')
-      .select('connected_user_id, name, title, domain, connection_method')
+      .select('connected_user_id, name, title, domain, connection_method, handshake_accepted')
       .eq('user_id', userId);
     if (vaultData) setVaultUsers(vaultData);
 
-    // Rule 1: Clean, strict 3-minute sliding visibility cutoff windows for incoming handshakes
     const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
     const { data: discoveryRequests } = await supabase
       .from('vault_connections')
@@ -111,7 +109,6 @@ export default function OreetiAmbientEngine() {
       .gt('created_at', threeMinutesAgo);
     if (discoveryRequests) setIncomingHandshakes(discoveryRequests);
 
-    // Track state confirmation to fire ambient meetup location card trigger
     const { data: acceptedCheck } = await supabase
       .from('vault_connections')
       .select('connected_user_id, current_station, handshake_accepted, name')
@@ -167,8 +164,21 @@ export default function OreetiAmbientEngine() {
                 .single();
 
               if (data) {
+                // Log scan directly into the vault connection framework instantly
+                await supabase.from('vault_connections').insert({
+                  user_id: userId,
+                  connected_user_id: data.id,
+                  name: data.name,
+                  title: data.title,
+                  domain: data.domain,
+                  connection_method: 'scan',
+                  handshake_accepted: true,
+                  created_at: new Date().toISOString()
+                });
+                
                 setScannedProfile(data as Networker);
-                setActiveTab('vault'); // Drops scan target immediately inside Vault tab state
+                setActiveTab('vault');
+                syncDatabaseFeeds();
               }
             }
           },
@@ -191,8 +201,7 @@ export default function OreetiAmbientEngine() {
   const triggerDiscoveryHandshake = async (targetUser: Networker) => {
     const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
     
-    // Rule 2: Strict Spam Guard enforcement checks
-    const { count, error: countError } = await supabase
+    const { count } = await supabase
       .from('vault_connections')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
@@ -282,10 +291,9 @@ export default function OreetiAmbientEngine() {
   return (
     <div style={{ margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#0A0605', color: '#FDFBF7', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box' }}>
       
-      {/* Absolute Ambient Banner Layer */}
       <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {systemAlert && (
-          <div style={{ background: '#1C1210', border: '1px solid #E6A15C', borderRadius: '12px', padding: '14px 16px', color: '#F5E6D3', fontSize: '11px', textAlign: 'center', letterSpacing: '0.5px' }}>
+          <div style={{ background: '#1C1210', border: '1px solid #E6A15C', borderRadius: '12px', padding: '14px 16px', color: '#F5E6D3', fontSize: '11px', textAlign: 'center' }}>
             {systemAlert}
           </div>
         )}
@@ -295,7 +303,7 @@ export default function OreetiAmbientEngine() {
             <div style={{ fontSize: '10px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600', marginBottom: '8px' }}>HANDSHAKE ESTABLISHED</div>
             <div style={{ fontSize: '18px', fontWeight: '400', marginBottom: '14px', color: '#FDFBF7' }}>Connected with {establishedHandshake.partnerName}</div>
             <div style={{ fontSize: '12px', color: '#8A7366', marginBottom: '20px' }}>Location Target: <span style={{ color: '#F5E6D3', fontWeight: '500' }}>{establishedHandshake.station}</span></div>
-            <div onClick={() => setEstablishedHandshake(null)} style={{ padding: '12px', background: 'rgba(230,161,92,0.1)', border: '1px solid rgba(230,161,92,0.3)', borderRadius: '10px', fontSize: '11px', fontWeight: '600', color: '#E6A15C', cursor: 'pointer', letterSpacing: '1px' }}>DISMISS NOTIFICATION</div>
+            <div onClick={() => setEstablishedHandshake(null)} style={{ padding: '12px', background: 'rgba(230,161,92,0.1)', border: '1px solid rgba(230,161,92,0.3)', borderRadius: '10px', fontSize: '11px', fontWeight: '600', color: '#E6A15C', cursor: 'pointer' }}>DISMISS NOTIFICATION</div>
           </div>
         )}
       </div>
@@ -324,16 +332,16 @@ export default function OreetiAmbientEngine() {
               {roomUsers.map(user => (
                 <div key={user.id} style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#110D0C', border: '1px solid rgba(230,161,92,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box' }}>
                   <div style={{ flex: 1, paddingRight: '12px' }}>
-                    {/* Gated Public Profile Data View */}
-                    <div style={{ fontSize: '17px', fontWeight: '400', color: '#F5E6D3' }}>{user.name.split(' ')[0]}</div>
+                    {/* STRICT GATED BEACON VIEW: Only First Name, Title/Role, and Focus Intent */}
+                    <div style={{ fontSize: '17px', fontWeight: '400', color: '#F5E6D3' }}>{user.name ? user.name.split(' ')[0] : 'Peer'}</div>
                     <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '4px', lineHeight: '1.4' }}>{user.title}</div>
                     <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '10px', fontStyle: 'italic', lineHeight: '1.4' }}>"{user.intent}"</div>
                   </div>
                   
-                  {/* Connect Trigger - Clean Anchor Positioned Far Right Inside Card Frame */}
+                  {/* Connect Button on the Far Right of the card */}
                   <div 
                     onClick={() => triggerDiscoveryHandshake(user)} 
-                    style={{ padding: '12px 18px', backgroundColor: 'rgba(230,161,92,0.06)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', borderRadius: '10px', fontSize: '10px', fontWeight: '600', cursor: 'pointer', letterSpacing: '1px', whiteSpace: 'nowrap', height: 'fit-content' }}
+                    style={{ padding: '12px 18px', backgroundColor: 'rgba(230,161,92,0.06)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', borderRadius: '10px', fontSize: '10px', fontWeight: '600', cursor: 'pointer', letterSpacing: '1px', whiteSpace: 'nowrap' }}
                   >
                     CONNECT
                   </div>
@@ -347,17 +355,16 @@ export default function OreetiAmbientEngine() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {scannedProfile ? (
               <div style={{ backgroundColor: '#110D0C', borderRadius: '24px', padding: '32px', border: '1px solid #E6A15C', display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
-                <div onClick={() => setScannedProfile(null)} style={{ position: 'absolute', top: '24px', right: '24px', color: '#8A7366', fontSize: '10px', cursor: 'pointer', letterSpacing: '1px' }}>EXIT CARD</div>
-                <div style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600' }}>TIER-1 GREETING CARD</div>
+                <div onClick={() => setScannedProfile(null)} style={{ position: 'absolute', top: '24px', right: '24px', color: '#8A7366', fontSize: '10px', cursor: 'pointer' }}>EXIT CARD</div>
+                <div style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600' }}>TIER-1 GREETING CARD (UNLOCKED)</div>
                 <div style={{ fontSize: '24px', color: '#FDFBF7', fontWeight: '300' }}>{scannedProfile.name}</div>
                 <div style={{ fontSize: '14px', color: '#E6A15C' }}>{scannedProfile.title}</div>
-                <div style={{ fontSize: '13px', color: '#D9C3B0', opacity: 0.9, marginTop: '4px' }}><strong>Domain:</strong> {scannedProfile.domain}</div>
+                <div style={{ fontSize: '13px', color: '#D9C3B0', opacity: 0.9 }}><strong>Domain:</strong> {scannedProfile.domain}</div>
                 
                 <div style={{ borderTop: '1px solid rgba(230,161,92,0.1)', marginTop: '12px', paddingTop: '16px' }}>
-                  <div style={{ fontSize: '11px', color: '#8A7366', marginBottom: '14px', lineHeight: '1.5' }}>Personal communication lines are locked. Secure connection via Tier-2 authorization.</div>
                   <button 
                     onClick={() => { triggerDiscoveryHandshake(scannedProfile); setScannedProfile(null); }}
-                    style={{ width: '100%', padding: '14px', background: '#E6A15C', color: '#0A0605', border: 'none', borderRadius: '12px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', letterSpacing: '1px' }}
+                    style={{ width: '100%', padding: '14px', background: '#E6A15C', color: '#0A0605', border: 'none', borderRadius: '12px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}
                   >
                     REQUEST TIER-2 ACCESS
                   </button>
@@ -370,7 +377,15 @@ export default function OreetiAmbientEngine() {
                   {vaultUsers.map((user, i) => (
                     <div key={i} style={{ backgroundColor: '#110D0C', borderRadius: '20px', padding: '24px', border: '1px solid rgba(230,161,92,0.02)' }}>
                       <div style={{ fontSize: '16px', fontWeight: '400', color: '#FDFBF7' }}>{user.name}</div>
-                      <div style={{ fontSize: '12px', color: '#D9C3B0', marginTop: '4px' }}>{user.title} {user.domain && `• ${user.domain}`}</div>
+                      <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '4px' }}>{user.title}</div>
+                      <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '6px' }}>
+                        Method: <span style={{ color: '#D9C3B0' }}>{user.connection_method === 'scan' ? 'Physical Scan (Tier 1)' : 'Accepted Handshake (Tier 2)'}</span>
+                      </div>
+                      {user.connection_method !== 'scan' && (
+                        <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '2px' }}>
+                          Domain Access: <span style={{ color: '#FDFBF7' }}>Unlocked</span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
