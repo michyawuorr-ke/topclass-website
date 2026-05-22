@@ -102,7 +102,6 @@ export default function OreetiSovereignEngine() {
 
   // Data Refresh Sync Loop
   const syncDatabaseFeeds = async () => {
-    // Fetch Saved connections
     const { data: vaultData } = await supabase
       .from('vault_connections')
       .select('connected_user_id, name, title, domain, connection_method, tier_2_status, shared_channels')
@@ -110,17 +109,15 @@ export default function OreetiSovereignEngine() {
 
     if (vaultData) setVaultUsers(vaultData as unknown as Networker[]);
 
-    // Fetch incoming handshakes (Discovery Mode requests to verify)
     const { data: discoveryRequests } = await supabase
       .from('vault_connections')
       .select('user_id, name, title')
       .eq('connected_user_id', profile.id)
       .eq('connection_method', 'discovery')
-      .eq('tier_2_status', 'locked'); // Initial state awaiting handshake accept
+      .eq('tier_2_status', 'locked');
 
     if (discoveryRequests) setIncomingHandshakes(discoveryRequests);
 
-    // Fetch deep Tier 2 data requests targeting you
     const { data: deepRequests } = await supabase
       .from('vault_connections')
       .select('user_id, name, title')
@@ -133,13 +130,12 @@ export default function OreetiSovereignEngine() {
   useEffect(() => {
     syncDatabaseFeeds();
 
-    // Listen for accepted discovery connections to fire the Look Up Alert
     const handshakeListener = supabase
       .channel('handshake_alerts')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vault_connections' }, (payload: any) => {
         if (payload.new.user_id === profile.id && payload.new.connection_method === 'discovery' && payload.new.handshake_accepted === true) {
           setShowLookUpAlert(true);
-          setTimeout(() => setShowLookUpAlert(false), 3000); // 3-second clean visual pacing
+          setTimeout(() => setShowLookUpAlert(false), 3000);
         }
       })
       .subscribe();
@@ -149,32 +145,31 @@ export default function OreetiSovereignEngine() {
     };
   }, [activeTab, profile.id]);
 
-  // Stripped-down Hardware Camera Scanner Configuration
+  // Cleaned Camera Framework with Fallback Lens Resolution
   useEffect(() => {
     if (isScanning && activeTab === 'room') {
-      setSystemStatus('Camera active...');
+      setSystemStatus('Initialising lens...');
       
       setTimeout(() => {
         try {
-          // Instantly lock down UI variables, forcing environment back-facing lens with zero setup text
+          // Softened facingMode constraints to avoid strict browser/wrapper hardware crashes
           scannerRef.current = new Html5QrcodeScanner(
             "reader-spatial-node",
             { 
-              fps: 15, 
-              qrbox: { width: 220, height: 220 },
-              videoConstraints: { facingMode: { exact: "environment" } },
+              fps: 20, 
+              qrbox: { width: 230, height: 230 },
+              videoConstraints: { facingMode: "environment" },
               rememberLastUsedCamera: true,
-              supportedScanTypes: [0] 
+              supportedScanTypes: [0]
             },
             false
           );
 
           scannerRef.current.render(
             async (decodedText) => {
-              // Extract original production ID from dynamic token
               const cleanId = decodedText.split('||')[0];
               if (scannerRef.current) {
-                scannerRef.current.clear();
+                scannerRef.current.clear().catch(() => {});
                 setIsScanning(false);
               }
 
@@ -187,14 +182,16 @@ export default function OreetiSovereignEngine() {
                 created_at: new Date().toISOString()
               });
 
-              setSystemStatus('QR identity saved directly.');
+              setSystemStatus('Connection stored.');
               setActiveTab('vault');
               syncDatabaseFeeds();
             },
-            () => {}
+            (error) => {
+              // Fail silently to keep interface running without throwing system boxes
+            }
           );
         } catch (err) {
-          setSystemStatus('Defaulting camera link...');
+          setSystemStatus('Hardware connection failed.');
         }
       }, 300);
     }
@@ -207,7 +204,6 @@ export default function OreetiSovereignEngine() {
     };
   }, [isScanning, activeTab]);
 
-  // Discovery Connect Request Trigger
   const triggerDiscoveryHandshake = async (targetUserId: string) => {
     setSystemStatus('Handshake broadcasted...');
     await supabase.from('vault_connections').insert({
@@ -220,7 +216,6 @@ export default function OreetiSovereignEngine() {
     });
   };
 
-  // Accept Discovery Request
   const acceptDiscoveryHandshake = async (requesterId: string) => {
     await supabase
       .from('vault_connections')
@@ -228,7 +223,6 @@ export default function OreetiSovereignEngine() {
       .eq('user_id', requesterId)
       .eq('connected_user_id', profile.id);
     
-    // Mirror the handshake link to write it into your own vault as discovery type
     await supabase.from('vault_connections').insert({
       user_id: profile.id,
       connected_user_id: requesterId,
@@ -280,7 +274,6 @@ export default function OreetiSovereignEngine() {
       fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box'
     }}>
       
-      {/* 3-SECOND EYE CONTACT LOOK UP ALERT MODAL */}
       {showLookUpAlert && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(10,6,5,0.98)', zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '24px', textAlign: 'center' }}>
           <div style={{ fontSize: '11px', color: '#E6A15C', letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '16px' }}>Handshake Verified</div>
@@ -288,7 +281,6 @@ export default function OreetiSovereignEngine() {
         </div>
       )}
 
-      {/* CORE FRAMEWORK AREA */}
       <div style={{ flex: 1, padding: '32px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '40px' }}>
         
         {activeTab === 'room' && (
@@ -303,13 +295,13 @@ export default function OreetiSovereignEngine() {
               </div>
             </div>
 
-            {/* Completely Stripped Down Camera Viewport */}
             {isScanning && (
               <div style={{ width: '100%', maxWidth: '340px', alignSelf: 'center', overflow: 'hidden', borderRadius: '24px', border: '1px solid rgba(230,161,92,0.15)', background: '#000' }}>
                 <div id="reader-spatial-node" style={{ width: '100%' }}></div>
                 <style>{`
                   #reader-spatial-node__dashboard, #reader-spatial-node__status_span, #reader-spatial-node button, #reader-spatial-node img { display: none !important; }
                   #reader-spatial-node { border: none !important; }
+                  #reader-spatial-node video { width: 100% !important; object-fit: cover !important; border-radius: 24px !important; }
                 `}</style>
               </div>
             )}
@@ -330,8 +322,6 @@ export default function OreetiSovereignEngine() {
 
         {activeTab === 'vault' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            
-            {/* CATEGORY ALPHA: PHYSICALLY SCANNED PROFILES */}
             <div>
               <div style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '2px', color: '#E6A15C', textTransform: 'uppercase', marginBottom: '12px' }}>Scanned Cards (Face-to-Face)</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -345,7 +335,6 @@ export default function OreetiSovereignEngine() {
               </div>
             </div>
 
-            {/* CATEGORY BETA: ROOM DISCOVERIES */}
             <div style={{ marginTop: '8px' }}>
               <div style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '2px', color: '#8A7366', textTransform: 'uppercase', marginBottom: '12px' }}>Room Discoveries (Nearby)</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -357,14 +346,11 @@ export default function OreetiSovereignEngine() {
                 ))}
               </div>
             </div>
-
           </div>
         )}
 
         {activeTab === 'presence' && (
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: '24px', alignItems: 'center' }}>
-            
-            {/* LIVE HANDSHAKE APPROVAL CONTROL DIALOGUE */}
             {incomingHandshakes.length > 0 && (
               <div style={{ width: '100%', maxWidth: '320px', backgroundColor: '#140D0C', border: '1px solid rgba(230,161,92,0.25)', borderRadius: '16px', padding: '18px', boxSizing: 'border-box' }}>
                 <div style={{ fontSize: '9px', fontWeight: '600', color: '#E6A15C', letterSpacing: '1.5px', marginBottom: '8px' }}>INCOMING DIGITAL HANDSHAKE</div>
@@ -388,7 +374,6 @@ export default function OreetiSovereignEngine() {
               <div style={{ fontSize: '11px', color: '#8A7366', lineHeight: '1.5', borderTop: '1px solid rgba(245, 230, 211, 0.03)', paddingTop: '12px', marginTop: '16px' }}>{profile.domain}</div>
             </div>
 
-            {/* DYNAMIC SECURITY SCAN KEY */}
             {isVisible ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '16px', borderRadius: '16px', background: 'rgba(14, 9, 8, 0.4)' }}>
                 <img src={qrCodeUrl} alt="Dynamic Key" style={{ width: '140px', height: '140px', borderRadius: '8px' }} />
@@ -397,15 +382,12 @@ export default function OreetiSovereignEngine() {
             ) : (
               <div style={{ padding: '20px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', fontStyle: 'italic', maxWidth: '260px' }}>Your secure scan card code is offline. Flip the broadcast switch below to activate your presence.</div>
             )}
-
           </div>
         )}
 
       </div>
 
-      {/* FOOTER CONTROLS */}
       <div style={{ background: 'linear-gradient(to top, #0A0605 80%, rgba(10, 6, 5, 0))', padding: '0 24px 30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box' }}>
-        
         {showIntentModal && (
           <div style={{ backgroundColor: '#140D10', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '16px', padding: '16px' }}>
             <input type="text" placeholder="What are you looking for right now?" value={currentIntent} onChange={(e) => setCurrentUrlIntent(e.target.value)} style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '10px', color: '#F5E6D3', marginBottom: '10px', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} />
@@ -428,7 +410,6 @@ export default function OreetiSovereignEngine() {
           <div onClick={() => { setActiveTab('vault'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'vault' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>VAULT</div>
           <div onClick={() => { setActiveTab('presence'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'presence' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>PRESENCE</div>
         </div>
-
       </div>
 
     </div>
