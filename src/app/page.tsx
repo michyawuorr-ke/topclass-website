@@ -26,7 +26,6 @@ export default function OreetiAmbientEngine() {
   const [showIntentModal, setShowIntentModal] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   
-  // Ambient notification states (Replaced intense fullscreen modals)
   const [ambientMeetingGuide, setAmbientMeetingGuide] = useState<string | null>(null);
   const [systemAlert, setSystemAlert] = useState<string | null>(null);
 
@@ -46,7 +45,6 @@ export default function OreetiAmbientEngine() {
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
-  // Security rotation
   useEffect(() => {
     const generateSecureToken = () => {
       setDynamicQrToken(`${profile.id}||${Date.now()}||${Math.random().toString(36).substring(2, 7)}`);
@@ -58,7 +56,6 @@ export default function OreetiAmbientEngine() {
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(dynamicQrToken)}&color=e6a15c&bgcolor=0e0908`;
 
-  // Heartbeat signal to prove the node is still physically in the room
   useEffect(() => {
     if (!isVisible) return;
     const heartbeat = setInterval(async () => {
@@ -66,7 +63,7 @@ export default function OreetiAmbientEngine() {
         .from('active_presence_nodes')
         .update({ last_seen: new Date().toISOString() })
         .eq('id', profile.id);
-    }, 15000); // Heartbeat ping every 15 seconds
+    }, 15000);
     return () => clearInterval(heartbeat);
   }, [isVisible, profile.id]);
 
@@ -78,11 +75,10 @@ export default function OreetiAmbientEngine() {
     }
 
     const fetchActiveNodes = async () => {
-      // Fetch nodes seen within the last 30 minutes (removes dead nodes automatically)
       const halfHourAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
       const { data } = await supabase
         .from('active_presence_nodes')
-        .select('*')
+        .select('id, name, title, domain, intent')
         .eq('room_anchor', sessionAnchor)
         .gt('last_seen', halfHourAgo)
         .not('id', 'eq', profile.id);
@@ -112,21 +108,19 @@ export default function OreetiAmbientEngine() {
 
     if (vaultData) setVaultUsers(vaultData);
 
-    // Fetch incoming handshakes that are less than 3 minutes old
     const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
     const { data: discoveryRequests } = await supabase
       .from('vault_connections')
-      .select('user_id, name, title, current_station')
+      .select('user_id, name, title')
       .eq('connected_user_id', profile.id)
       .eq('connection_method', 'discovery')
       .eq('handshake_accepted', false)
       .gt('created_at', threeMinutesAgo)
       .order('created_at', { ascending: false })
-      .limit(2); // Layout ceiling protection
+      .limit(2);
 
     if (discoveryRequests) setIncomingHandshakes(discoveryRequests);
 
-    // Track how many pings this user currently has open
     const { count } = await supabase
       .from('vault_connections')
       .select('*', { count: 'exact', head: true })
@@ -139,7 +133,7 @@ export default function OreetiAmbientEngine() {
 
   useEffect(() => {
     syncDatabaseFeeds();
-    const intervalSync = setInterval(syncDatabaseFeeds, 10000); // Auto-clear expired items every 10 seconds
+    const intervalSync = setInterval(syncDatabaseFeeds, 10000);
 
     const handshakeListener = supabase
       .channel('handshake_alerts')
@@ -151,7 +145,8 @@ export default function OreetiAmbientEngine() {
             .eq('id', payload.new.connected_user_id)
             .single();
 
-          setAmbientMeetingGuide(`Connected with ${targetNode?.name || 'them'}. They are located near the ${targetNode?.current_station || 'Main Bar'}.`);
+          // Refined, compact premium copy for the sender
+          setAmbientMeetingGuide(`Handshake Established. Found near the ${targetNode?.current_station || 'Main Bar'}.`);
         }
       })
       .subscribe();
@@ -162,12 +157,11 @@ export default function OreetiAmbientEngine() {
     };
   }, [activeTab, profile.id]);
 
-  // Scanner Engine Hook
+  // Scanner Engine Hooks
   useEffect(() => {
     if (isScanning && activeTab === 'room') {
       const nativeScanner = new Html5Qrcode("reader-engine");
       html5QrCodeRef.current = nativeScanner;
-
       nativeScanner.start(
         { facingMode: "environment" }, 
         { fps: 24, qrbox: (w, h) => ({ width: Math.floor(Math.min(w, h) * 0.75), height: Math.floor(Math.min(w, h) * 0.75) }) },
@@ -190,24 +184,18 @@ export default function OreetiAmbientEngine() {
       setTimeout(() => setSystemAlert(null), 4000);
       return;
     }
-
-    await supabase.from('vault_connections').insert({
-      user_id: profile.id,
-      connected_user_id: targetUserId,
-      connection_method: 'discovery',
-      handshake_accepted: false,
-      created_at: new Date().toISOString()
-    });
+    await supabase.from('vault_connections').insert({ user_id: profile.id, connected_user_id: targetUserId, connection_method: 'discovery', handshake_accepted: false, created_at: new Date().toISOString() });
     syncDatabaseFeeds();
   };
 
   const acceptDiscoveryHandshake = async (requesterId: string) => {
-    const { data: myNode } = await supabase.from('active_presence_nodes').select('current_station').eq('id', profile.id).single();
-    
     await supabase.from('vault_connections').update({ handshake_accepted: true }).eq('user_id', requesterId).eq('connected_user_id', profile.id);
     await supabase.from('vault_connections').insert({ user_id: profile.id, connected_user_id: requesterId, connection_method: 'discovery', handshake_accepted: true });
 
-    setAmbientMeetingGuide(`Handshake accepted. You can find them near the ${myNode?.current_station || selectedStation}.`);
+    const { data: theirNode } = await supabase.from('active_presence_nodes').select('current_station, name').eq('id', requesterId).single();
+
+    // Refined, compact premium copy for the receiver
+    setAmbientMeetingGuide(`Handshake Established. Found near the ${theirNode?.current_station || 'Main Bar'}.`);
     syncDatabaseFeeds();
   };
 
@@ -236,7 +224,7 @@ export default function OreetiAmbientEngine() {
   return (
     <div style={{ margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#0A0605', color: '#FDFBF7', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box' }}>
       
-      {/* Soft Notifications Overlay System */}
+      {/* Ambient Notifications Base */}
       <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {ambientMeetingGuide && (
           <div onClick={() => setAmbientMeetingGuide(null)} style={{ background: '#140D0C', border: '1px solid #E6A15C', borderRadius: '12px', padding: '16px', color: '#F5E6D3', fontSize: '13px', lineHeight: '1.4', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', cursor: 'pointer' }}>
@@ -279,7 +267,6 @@ export default function OreetiAmbientEngine() {
                   <div style={{ flex: 1, paddingRight: '12px' }}>
                     <div style={{ fontSize: '15px', fontWeight: '500', color: '#F5E6D3' }}>{user.name} <span style={{ fontSize: '12px', color: '#8A7366', fontWeight: '300', marginLeft: '4px' }}>— {user.title}</span></div>
                     <div style={{ fontSize: '11px', color: '#E6A15C', marginTop: '6px' }}>"{user.intent}"</div>
-                    {user.current_station && <span style={{ fontSize: '9px', background: 'rgba(230,161,92,0.08)', color: '#E6A15C', padding: '3px 8px', borderRadius: '4px', display: 'inline-block', marginTop: '8px', fontWeight: '600' }}>📍 {user.current_station.toUpperCase()}</span>}
                   </div>
                   <div onClick={() => triggerDiscoveryHandshake(user.id)} style={{ padding: '10px 14px', backgroundColor: '#E6A15C', color: '#140D0C', borderRadius: '8px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>PING</div>
                 </div>
@@ -340,10 +327,10 @@ export default function OreetiAmbientEngine() {
         
         {showIntentModal && (
           <div style={{ backgroundColor: '#140D10', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '16px', padding: '18px' }}>
-            <div style={{ fontSize: '10px', color: '#8A7366', letterSpacing: '1px', marginBottom: '8px', textTransform: 'uppercase' }}>1. Current Focus</div>
+            <div style={{ fontSize: '10px', color: '#8A7366', letterSpacing: '1px', marginBottom: '8px', textTransform: 'uppercase' }}>1. Current Focus (Visible to Room)</div>
             <input type="text" placeholder="What are you looking for right now?" value={currentIntent} onChange={(e) => setCurrentUrlIntent(e.target.value)} style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '10px', color: '#F5E6D3', marginBottom: '14px', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} />
             
-            <div style={{ fontSize: '10px', color: '#8A7366', letterSpacing: '1px', marginBottom: '8px', textTransform: 'uppercase' }}>2. Station Landmark</div>
+            <div style={{ fontSize: '10px', color: '#8A7366', letterSpacing: '1px', marginBottom: '8px', textTransform: 'uppercase' }}>2. Private Landmark Station (Revealed after match)</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
               {['Main Bar', 'Stage Front', 'Lounge Area', 'Media Wall'].map((station) => (
                 <div key={station} onClick={() => setSelectedStation(station)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid', borderColor: selectedStation === station ? '#E6A15C' : 'rgba(245,230,211,0.05)', background: selectedStation === station ? 'rgba(230,161,92,0.08)' : '#0A0605', color: selectedStation === station ? '#E6A15C' : '#8A7366', fontSize: '11px', textAlign: 'center', cursor: 'pointer' }}>
@@ -362,7 +349,7 @@ export default function OreetiAmbientEngine() {
         <div style={{ padding: '14px 18px', borderRadius: '16px', backgroundColor: 'rgba(20, 13, 12, 0.45)', border: '1px solid rgba(245, 230, 211, 0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: '12px', color: '#F5E6D3' }}>Visible Broadcast Mode</div>
-            {isVisible && <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '2px' }}>Stationed at {selectedStation}</div>}
+            {isVisible && <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '2px' }}>Stationed privately at {selectedStation}</div>}
           </div>
           <div onClick={() => { if (!isVisible) { setShowIntentModal(true); } else { setIsVisible(false); supabase.from('active_presence_nodes').delete().eq('id', profile.id); } }} style={{ width: '44px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
             <div style={{ width: '18px', height: '18px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '23px' : '3px', transition: 'left 0.2s' }} />
