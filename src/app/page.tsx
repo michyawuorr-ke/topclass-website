@@ -20,7 +20,7 @@ interface Networker {
 export default function OreetiAmbientEngine() {
   const [activeTab, setActiveTab] = useState<'room' | 'vault' | 'presence'>('presence');
   const [isVisible, setIsVisible] = useState(false);
-  const [isEditing, setIsEditing] = useState(true); 
+  const [isEditing, setIsEditing] = useState(false); 
   
   // Clean states
   const [fullName, setFullName] = useState('');
@@ -151,7 +151,7 @@ export default function OreetiAmbientEngine() {
             .eq('id', payload.new.connected_user_id)
             .single();
 
-          setAmbientMeetingGuide(`Handshake Established. Found near the ${targetNode?.current_station || 'designated spot'}.`);
+          setAmbientMeetingGuide("Handshake Established. Peer found at landmark station.");
         }
       })
       .subscribe();
@@ -184,7 +184,7 @@ export default function OreetiAmbientEngine() {
 
   const triggerDiscoveryHandshake = async (targetUserId: string) => {
     if (pendingSentCount >= 3) {
-      setSystemAlert("Connection queue full. Wait for pending requests to resolve.");
+      setSystemAlert("Connection queue full.");
       setTimeout(() => setSystemAlert(null), 4000);
       return;
     }
@@ -195,10 +195,7 @@ export default function OreetiAmbientEngine() {
   const acceptDiscoveryHandshake = async (requesterId: string) => {
     await supabase.from('vault_connections').update({ handshake_accepted: true }).eq('user_id', requesterId).eq('connected_user_id', userId);
     await supabase.from('vault_connections').insert({ user_id: userId, connected_user_id: requesterId, connection_method: 'discovery', handshake_accepted: true });
-
-    const { data: theirNode } = await supabase.from('active_presence_nodes').select('current_station, name').eq('id', requesterId).single();
-
-    setAmbientMeetingGuide(`Handshake Established. Found near the ${theirNode?.current_station || 'designated spot'}.`);
+    setAmbientMeetingGuide("Handshake Established.");
     syncDatabaseFeeds();
   };
 
@@ -228,20 +225,13 @@ export default function OreetiAmbientEngine() {
     });
   };
 
-  // Extract dynamic single letter monogram initial safely
-  const getInitial = () => {
-    if (fullName.trim()) return fullName.trim().charAt(0).toUpperCase();
-    return 'P'; 
-  };
-
   return (
     <div style={{ margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#0A0605', color: '#FDFBF7', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box' }}>
       
-      {/* Ambient Messaging Channel */}
+      {/* Toast Alert Layer */}
       <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {ambientMeetingGuide && (
           <div onClick={() => setAmbientMeetingGuide(null)} style={{ background: '#140D0C', border: '1px solid #E6A15C', borderRadius: '12px', padding: '16px', color: '#F5E6D3', fontSize: '13px', lineHeight: '1.4', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', cursor: 'pointer' }}>
-            <div style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '1px', marginBottom: '4px', fontWeight: '600' }}>CONNECTION ASSISTANT</div>
             {ambientMeetingGuide}
           </div>
         )}
@@ -252,7 +242,7 @@ export default function OreetiAmbientEngine() {
         )}
       </div>
 
-      <div style={{ flex: 1, padding: '32px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '40px' }}>
+      <div style={{ flex: 1, padding: '40px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '40px' }}>
         
         {activeTab === 'room' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1 }}>
@@ -303,11 +293,11 @@ export default function OreetiAmbientEngine() {
         )}
 
         {activeTab === 'presence' && (
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: '28px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: '32px', alignItems: 'center' }}>
             {incomingHandshakes.map((req, idx) => (
-              <div key={idx} style={{ width: '100%', maxWidth: '320px', backgroundColor: '#140D0C', border: '1px solid rgba(230, 161, 92, 0.25)', borderRadius: '16px', padding: '18px', boxSizing: 'border-box' }}>
+              <div key={idx} style={{ width: '100%', maxWidth: '340px', backgroundColor: '#140D0C', border: '1px solid rgba(230,161,92,0.25)', borderRadius: '16px', padding: '18px', boxSizing: 'border-box' }}>
                 <div style={{ fontSize: '9px', fontWeight: '600', color: '#E6A15C', letterSpacing: '1.5px', marginBottom: '6px' }}>INCOMING CONNECTION REQUEST</div>
-                <div style={{ fontSize: '13px', color: '#F5E6D3', marginBottom: '12px' }}><strong>{req.name}</strong> has matched your room signal. Connect?</div>
+                <div style={{ fontSize: '13px', color: '#F5E6D3', marginBottom: '12px' }}><strong>{req.name}</strong> matched you. Connect?</div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button onClick={() => acceptDiscoveryHandshake(req.user_id)} style={{ flex: 1, padding: '10px', background: '#E6A15C', color: '#0A0605', fontWeight: '600', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '11px' }}>ACCEPT</button>
                   <button onClick={() => declineDiscoveryHandshake(req.user_id)} style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', color: '#8A7366', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '11px' }}>BYPASS</button>
@@ -315,108 +305,114 @@ export default function OreetiAmbientEngine() {
               </div>
             ))}
 
-            {/* High-End Obsidian Monogram Card Structure */}
-            <div style={{ width: '100%', maxWidth: '340px', backgroundColor: '#130E0D', borderRadius: '24px', padding: '24px', boxSizing: 'border-box', display: 'flex', gap: '16px', position: 'relative', minHeight: '120px', border: '1px solid rgba(255,255,255,0.015)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            {/* Premium, Highly Spacious, Minimalist Asset Card */}
+            <div style={{ width: '100%', maxWidth: '350px', backgroundColor: '#110D0C', borderRadius: '28px', padding: '36px 28px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', position: 'relative', border: '1px solid rgba(255,255,255,0.015)', boxShadow: '0 30px 60px -15px rgba(0,0,0,0.6)' }}>
               
-              {/* Premium Circular Initial Monogram Avatar */}
-              <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'linear-gradient(135deg, #1E1B4B 0%, #31102F 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: '600', color: '#FDFBF7', flexShrink: 0, boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.1)' }}>
-                {getInitial()}
-              </div>
-
-              {/* Dynamic Information Content Pipeline */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', paddingRight: '24px', paddingTop: '2px' }}>
-                {isEditing ? (
-                  /* Inline Boxless Minimal Inputs */
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <input 
-                      type="text" 
-                      placeholder="Full Name" 
-                      value={fullName} 
-                      onChange={(e) => setFullName(e.target.value)} 
-                      style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '18px', fontWeight: '600' }} 
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="Product Architect" 
-                      value={role} 
-                      onChange={(e) => setRole(e.target.value)} 
-                      style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, color: '#A5B4FC', boxSizing: 'border-box', outline: 'none', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }} 
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="Nexus Labs" 
-                      value={domain} 
-                      onChange={(e) => setDomain(e.target.value)} 
-                      style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, color: '#8A7366', boxSizing: 'border-box', outline: 'none', fontSize: '13px', fontWeight: '400' }} 
-                    />
-                  </div>
-                ) : (
-                  /* Flawless Typographic Premium Presentation Layer */
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ fontSize: '18px', fontWeight: '600', color: fullName ? '#FDFBF7' : '#3E2E2A' }}>
-                      {fullName || 'Identity Unassigned'}
-                    </div>
-                    
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
-                      {role ? (
-                        <div style={{ background: 'rgba(165, 180, 252, 0.08)', border: '1px solid rgba(165, 180, 252, 0.15)', borderRadius: '100px', padding: '4px 10px', fontSize: '9px', fontWeight: '700', color: '#A5B4FC', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                          {role}
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: '10px', color: '#3E2E2A', textTransform: 'uppercase', letterSpacing: '1px' }}>Role Empty</div>
-                      )}
-
-                      <div style={{ fontSize: '13px', color: domain ? '#94A3B8' : '#3E2E2A', fontWeight: '400' }}>
-                        {domain || 'Domain Empty'}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Minimal Geometric Circular Pencil SVG Action Link */}
+              {/* Static Global Edit Icon Component (Always Pencil icon) */}
               <div 
                 onClick={() => setIsEditing(!isEditing)} 
-                style={{ position: 'absolute', top: '20px', right: '20px', width: '32px', height: '32px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.04)', background: isEditing ? 'rgba(230,161,92,0.1)' : 'rgba(255,255,255,0.01)', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                style={{ position: 'absolute', top: '28px', right: '28px', width: '34px', height: '34px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.03)', background: 'rgba(255,255,255,0.01)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={isEditing ? "#E6A15C" : "#64748B"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  {isEditing ? (
-                    <path d="M20 6L9 17l-5-5" /> 
-                  ) : (
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  )}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E6A15C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
               </div>
+
+              {isEditing ? (
+                /* Boxless Spacious Inputs with Elegant Top Labels */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1px', textTransform: 'uppercase' }}>Full Name</span>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Elena Rostova" 
+                      value={fullName} 
+                      onChange={(e) => setFullName(e.target.value)} 
+                      style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '18px', fontWeight: '500' }} 
+                    />
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1px', textTransform: 'uppercase' }}>Professional Role</span>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Product Architect" 
+                      value={role} 
+                      onChange={(e) => setRole(e.target.value)} 
+                      style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#A5B4FC', boxSizing: 'border-box', outline: 'none', fontSize: '14px', letterSpacing: '0.5px' }} 
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1px', textTransform: 'uppercase' }}>Operational Domain</span>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Nexus Labs" 
+                      value={domain} 
+                      onChange={(e) => setDomain(e.target.value)} 
+                      style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#94A3B8', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
+                    />
+                  </div>
+
+                  {/* Elegant Tiny Save Button Node inside Editor Panel */}
+                  <div 
+                    onClick={() => setIsEditing(false)}
+                    style={{ marginTop: '8px', alignSelf: 'flex-start', padding: '8px 18px', borderRadius: '8px', background: 'rgba(230,161,92,0.08)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', fontSize: '10px', fontWeight: '600', letterSpacing: '1.5px', cursor: 'pointer' }}
+                  >
+                    SAVE CHANGES
+                  </div>
+                </div>
+              ) : (
+                /* Uncluttered Premium Static Layout Engine */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>
+                  <div style={{ fontSize: '22px', fontWeight: '600', color: fullName ? '#FDFBF7' : '#3E2E2A', letterSpacing: '-0.3px' }}>
+                    {fullName || 'Identity Unassigned'}
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginTop: '4px' }}>
+                    {role ? (
+                      <div style={{ background: 'rgba(165, 180, 252, 0.06)', border: '1px solid rgba(165, 180, 252, 0.15)', borderRadius: '100px', padding: '5px 12px', fontSize: '9px', fontWeight: '700', color: '#A5B4FC', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                        {role}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '9px', color: '#3E2E2A', textTransform: 'uppercase', letterSpacing: '1px' }}>Role Empty</div>
+                    )}
+
+                    <div style={{ fontSize: '14px', color: domain ? '#94A3B8' : '#3E2E2A', fontWeight: '400', letterSpacing: '0.2px' }}>
+                      {domain || 'Domain Empty'}
+                    </div>
+                  </div>
+                </div>
+              )}
 
             </div>
 
             {isVisible ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '16px', borderRadius: '20px', background: 'rgba(20, 13, 12, 0.3)' }}>
                 <img src={qrCodeUrl} alt="Dynamic Key" style={{ width: '130px', height: '130px', borderRadius: '12px' }} />
-                <div style={{ fontSize: '8px', color: '#E6A15C', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '600' }}>Signal Broadcaster Engine Active</div>
+                <div style={{ fontSize: '8px', color: '#E6A15C', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '600' }}>Broadcaster Active</div>
               </div>
             ) : (
-              <div style={{ padding: '0 20px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', letterSpacing: '0.5px', fontStyle: 'italic', maxWidth: '280px', lineHeight: '1.5' }}>Engage the pencil component to set up your network anchor node.</div>
+              <div style={{ padding: '0 20px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', letterSpacing: '0.5px', fontStyle: 'italic', maxWidth: '280px', lineHeight: '1.5' }}>Engage the pencil component to view or edit your network card identity.</div>
             )}
           </div>
         )}
 
       </div>
 
-      {/* Persistent Base Interaction Layer */}
+      {/* Persistent Base Control Layout */}
       <div style={{ background: 'linear-gradient(to top, #0A0605 85%, rgba(10, 6, 5, 0))', padding: '0 24px 30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box' }}>
         
-        {/* Streamlined Pre-Live Interstitial Context Layer */}
+        {/* Simplified Broadcast Details Slide-up Node */}
         {showIntentModal && (
           <div style={{ backgroundColor: '#140D0C', border: '1px solid rgba(230, 161, 92, 0.15)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
-            
             <div style={{ position: 'relative' }}>
               <input 
                 type="text" 
                 placeholder="Current Focus Intent?" 
                 value={currentIntent} 
                 onChange={(e) => setCurrentUrlIntent(e.target.value)} 
-                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '10px', padding: '14px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
+                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '10px', padding: '14px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }}
               />
             </div>
             
