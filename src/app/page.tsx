@@ -21,7 +21,7 @@ export default function OreetiAmbientEngine() {
   const [activeTab, setActiveTab] = useState<'room' | 'vault' | 'presence'>('presence');
   const [isVisible, setIsVisible] = useState(false);
   
-  // Dynamic user profile states initialized completely blank
+  // Clean, zero-placeholder directory states
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('');
   const [domain, setDomain] = useState('');
@@ -40,13 +40,18 @@ export default function OreetiAmbientEngine() {
   const [incomingHandshakes, setIncomingHandshakes] = useState<any[]>([]);
   const [pendingSentCount, setPendingSentCount] = useState(0);
   
-  const [userId] = useState(() => `node-${Math.random().toString(36).substring(2, 15)}`);
+  const [userId, setUserId] = useState<string>('');
   const [dynamicQrToken, setDynamicQrToken] = useState('');
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
+  // Establish unique node identity safely
   useEffect(() => {
-    if (!fullName) return;
+    setUserId(`node-${Math.random().toString(36).substring(2, 15)}`);
+  }, []);
+
+  useEffect(() => {
+    if (!fullName || !userId) return;
     const generateSecureToken = () => {
       setDynamicQrToken(`${userId}||${Date.now()}||${Math.random().toString(36).substring(2, 7)}`);
     };
@@ -58,7 +63,7 @@ export default function OreetiAmbientEngine() {
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(dynamicQrToken)}&color=e6a15c&bgcolor=0e0908`;
 
   useEffect(() => {
-    if (!isVisible) return;
+    if (!isVisible || !userId) return;
     const heartbeat = setInterval(async () => {
       await supabase
         .from('active_presence_nodes')
@@ -68,9 +73,9 @@ export default function OreetiAmbientEngine() {
     return () => clearInterval(heartbeat);
   }, [isVisible, userId]);
 
-  // Real-time unfiltered room sync engine
+  // Real-time room matching stream
   useEffect(() => {
-    if (!isVisible) {
+    if (!isVisible || !userId) {
       setRoomUsers([]);
       return;
     }
@@ -81,7 +86,7 @@ export default function OreetiAmbientEngine() {
         .from('active_presence_nodes')
         .select('id, name, title, domain, intent')
         .gt('last_seen', halfHourAgo)
-        .not('id', 'eq', userId); // Unfiltered room matching logic
+        .not('id', 'eq', userId);
 
       if (data) setRoomUsers(data as Networker[]);
     };
@@ -101,6 +106,7 @@ export default function OreetiAmbientEngine() {
   }, [isVisible, userId]);
 
   const syncDatabaseFeeds = async () => {
+    if (!userId) return;
     const { data: vaultData } = await supabase
       .from('vault_connections')
       .select('connected_user_id, name, title, domain, connection_method')
@@ -132,6 +138,7 @@ export default function OreetiAmbientEngine() {
   };
 
   useEffect(() => {
+    if (!userId) return;
     syncDatabaseFeeds();
     const intervalSync = setInterval(syncDatabaseFeeds, 10000);
 
@@ -156,9 +163,9 @@ export default function OreetiAmbientEngine() {
     };
   }, [activeTab, userId]);
 
-  // Scanner Engine Hooks
+  // QR Scanning Engine Architecture
   useEffect(() => {
-    if (isScanning && activeTab === 'room') {
+    if (isScanning && activeTab === 'room' && userId) {
       const nativeScanner = new Html5Qrcode("reader-engine");
       html5QrCodeRef.current = nativeScanner;
       nativeScanner.start(
@@ -175,7 +182,7 @@ export default function OreetiAmbientEngine() {
       ).catch(() => {});
     }
     return () => { if (html5QrCodeRef.current) { html5QrCodeRef.current.stop().catch(() => {}); html5QrCodeRef.current = null; } };
-  }, [isScanning, activeTab]);
+  }, [isScanning, activeTab, userId]);
 
   const triggerDiscoveryHandshake = async (targetUserId: string) => {
     if (pendingSentCount >= 3) {
@@ -204,7 +211,7 @@ export default function OreetiAmbientEngine() {
 
   const confirmVisibility = async () => {
     if (!fullName.trim() || !role.trim() || !domain.trim() || !currentIntent.trim() || !selectedStation.trim()) {
-      setSystemAlert("Complete all presence and focus directory details first.");
+      setSystemAlert("Complete all directory details first.");
       setTimeout(() => setSystemAlert(null), 4000);
       return;
     }
@@ -232,23 +239,23 @@ export default function OreetiAmbientEngine() {
           <div onClick={() => setAmbientMeetingGuide(null)} style={{ background: '#140D0C', border: '1px solid #E6A15C', borderRadius: '12px', padding: '16px', color: '#F5E6D3', fontSize: '13px', lineHeight: '1.4', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', cursor: 'pointer' }}>
             <div style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '1px', marginBottom: '4px', fontWeight: '600' }}>CONNECTION ASSISTANT</div>
             {ambientMeetingGuide}
-            <div style={{ fontSize: '9px', color: '#8A7366', marginTop: '6px' }}>Tap card to dismiss</div>
           </div>
         )}
         {systemAlert && (
-          <div style={{ background: '#1C1210', border: '1px solid rgba(230,161,92,0.15)', borderRadius: '12px', padding: '12px 16px', color: '#A68F81', fontSize: '12px' }}>
+          <div style={{ background: '#1C1210', border: '1px solid rgba(230,161,92,0.15)', borderRadius: '12px', padding: '12px 16px', color: '#A68F81', fontSize: '12px', textAlign: 'center' }}>
             {systemAlert}
           </div>
         )}
       </div>
 
+      {/* Main Content Workspace */}
       <div style={{ flex: 1, padding: '32px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '40px' }}>
         
         {activeTab === 'room' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '11px', color: '#4E3C36', fontWeight: '600' }}>People Nearby • Queue ({pendingSentCount}/3)</div>
+                <div style={{ fontSize: '11px', color: '#8A7366', fontWeight: '600', letterSpacing: '1.5px' }}>PEOPLE NEARBY • QUEUE ({pendingSentCount}/3)</div>
               </div>
               <div onClick={async () => { if (isScanning && html5QrCodeRef.current) { await html5QrCodeRef.current.stop().catch(() => {}); html5QrCodeRef.current = null; } setIsScanning(!isScanning); }} style={{ fontSize: '10px', color: '#E6A15C', border: '1px solid rgba(230,161,92,0.2)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
                 {isScanning ? 'CLOSE' : 'SCAN CARD'}
@@ -293,7 +300,7 @@ export default function OreetiAmbientEngine() {
         )}
 
         {activeTab === 'presence' && (
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: '24px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: '28px', alignItems: 'center' }}>
             {incomingHandshakes.map((req, idx) => (
               <div key={idx} style={{ width: '100%', maxWidth: '320px', backgroundColor: '#140D0C', border: '1px solid rgba(230,161,92,0.25)', borderRadius: '16px', padding: '18px', boxSizing: 'border-box' }}>
                 <div style={{ fontSize: '9px', fontWeight: '600', color: '#E6A15C', letterSpacing: '1.5px', marginBottom: '6px' }}>INCOMING CONNECTION REQUEST</div>
@@ -305,88 +312,112 @@ export default function OreetiAmbientEngine() {
               </div>
             ))}
 
-            {/* Empty inputs profile configuration panel */}
-            <div style={{ width: '100%', maxWidth: '320px', backgroundColor: 'rgba(14, 9, 8, 0.95)', borderRadius: '16px', padding: '24px', border: '1px solid rgba(245, 230, 211, 0.035)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <input 
-                type="text" 
-                disabled={isVisible}
-                placeholder="Full Name" 
-                value={fullName} 
-                onChange={(e) => setFullName(e.target.value)} 
-                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '12px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '14px' }} 
-              />
-              <input 
-                type="text" 
-                disabled={isVisible}
-                placeholder="Role (e.g. Lead Developer)" 
-                value={role} 
-                onChange={(e) => setRole(e.target.value)} 
-                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '12px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '14px' }} 
-              />
-              <input 
-                type="text" 
-                disabled={isVisible}
-                placeholder="Domain (e.g. Fine Arts, FinTech)" 
-                value={domain} 
-                onChange={(e) => setDomain(e.target.value)} 
-                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '12px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '14px' }} 
-              />
+            {/* Premium, High-End Minimal Entry Card */}
+            <div style={{ width: '100%', maxWidth: '340px', backgroundColor: 'rgba(14, 9, 8, 0.7)', borderRadius: '24px', padding: '32px 24px', border: '1px solid rgba(245, 230, 211, 0.035)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              
+              <div style={{ position: 'relative' }}>
+                <div style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px', fontWeight: '600' }}>Full Name</div>
+                <input 
+                  type="text" 
+                  disabled={isVisible}
+                  placeholder="—" 
+                  value={fullName} 
+                  onChange={(e) => setFullName(e.target.value)} 
+                  style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(245, 230, 211, 0.1)', padding: '6px 0 10px 0', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '18px', fontWeight: '300', borderRadius: 0 }} 
+                />
+              </div>
+
+              <div style={{ position: 'relative' }}>
+                <div style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px', fontWeight: '600' }}>Professional Role</div>
+                <input 
+                  type="text" 
+                  disabled={isVisible}
+                  placeholder="—" 
+                  value={role} 
+                  onChange={(e) => setRole(e.target.value)} 
+                  style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(245, 230, 211, 0.1)', padding: '6px 0 10px 0', color: '#E6A15C', boxSizing: 'border-box', outline: 'none', fontSize: '14px', borderRadius: 0 }} 
+                />
+              </div>
+
+              <div style={{ position: 'relative' }}>
+                <div style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px', fontWeight: '600' }}>Operational Domain</div>
+                <input 
+                  type="text" 
+                  disabled={isVisible}
+                  placeholder="—" 
+                  value={domain} 
+                  onChange={(e) => setDomain(e.target.value)} 
+                  style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(245, 230, 211, 0.1)', padding: '6px 0 10px 0', color: '#A68F81', boxSizing: 'border-box', outline: 'none', fontSize: '13px', borderRadius: 0 }} 
+                />
+              </div>
+
             </div>
 
             {isVisible ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '16px', borderRadius: '16px', background: 'rgba(14, 9, 8, 0.4)' }}>
-                <img src={qrCodeUrl} alt="Dynamic Key" style={{ width: '140px', height: '140px', borderRadius: '8px' }} />
-                <div style={{ fontSize: '8px', color: '#8A7366', letterSpacing: '1px', textTransform: 'uppercase' }}>Dynamic Security Token Active</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '16px', borderRadius: '20px', background: 'rgba(20, 13, 12, 0.3)' }}>
+                <img src={qrCodeUrl} alt="Dynamic Key" style={{ width: '130px', height: '130px', borderRadius: '12px', opacity: 0.9 }} />
+                <div style={{ fontSize: '8px', color: '#E6A15C', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '600' }}>Signal Broadcaster Engine Active</div>
               </div>
             ) : (
-              <div style={{ padding: '10px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', fontStyle: 'italic', maxWidth: '260px' }}>Fill in directory cards then flip the broadcast switch below to step into the room.</div>
+              <div style={{ padding: '0 20px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', letterSpacing: '0.5px', fontStyle: 'italic', maxWidth: '280px', lineHeight: '1.5' }}>Fill in directory tags then invoke broadcast layout to step into the shared workspace.</div>
             )}
           </div>
         )}
 
       </div>
 
-      <div style={{ background: 'linear-gradient(to top, #0A0605 80%, rgba(10, 6, 5, 0))', padding: '0 24px 30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box' }}>
+      {/* Persistent Bottom Controls Container (Aligned to Thumb Zone Rule) */}
+      <div style={{ background: 'linear-gradient(to top, #0A0605 85%, rgba(10, 6, 5, 0))', padding: '0 24px 30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box' }}>
         
+        {/* Streamlined Pre-Live Interstitial Context Layer */}
         {showIntentModal && (
-          <div style={{ backgroundColor: '#140D10', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <input 
-              type="text" 
-              placeholder="Your Intent (e.g. Looking for Designer)" 
-              value={currentIntent} 
-              onChange={(e) => setCurrentUrlIntent(e.target.value)} 
-              style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '12px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
-            />
+          <div style={{ backgroundColor: '#140D0C', border: '1px solid rgba(230, 161, 92, 0.15)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
             
-            <input 
-              type="text" 
-              placeholder="Your Meetup Station (e.g. Main Bar Couch)" 
-              value={selectedStation} 
-              onChange={(e) => setSelectedStation(e.target.value)} 
-              style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '12px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
-            />
+            <div style={{ position: 'relative' }}>
+              <div style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Current Focus Intent</div>
+              <input 
+                type="text" 
+                placeholder="What objective brings you to the room?" 
+                value={currentIntent} 
+                onChange={(e) => setCurrentUrlIntent(e.target.value)} 
+                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '10px', padding: '14px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
+              />
+            </div>
+            
+            <div style={{ position: 'relative' }}>
+              <div style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Private Landmark Station</div>
+              <input 
+                type="text" 
+                placeholder="Where can matches physically find you?" 
+                value={selectedStation} 
+                onChange={(e) => setSelectedStation(e.target.value)} 
+                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '10px', padding: '14px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
+              />
+            </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <div onClick={confirmVisibility} style={{ flex: 1, backgroundColor: '#E6A15C', color: '#140D0C', padding: '12px', borderRadius: '8px', textAlign: 'center', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>GO LIVE</div>
-              <div onClick={() => setShowIntentModal(false)} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.04)', color: '#A68F81', padding: '12px', borderRadius: '8px', textAlign: 'center', fontSize: '12px', cursor: 'pointer' }}>CANCEL</div>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+              <div onClick={confirmVisibility} style={{ flex: 1, backgroundColor: '#E6A15C', color: '#140D0C', padding: '14px', borderRadius: '10px', textAlign: 'center', fontSize: '12px', fontWeight: '600', cursor: 'pointer', letterSpacing: '1px' }}>GO LIVE</div>
+              <div onClick={() => setShowIntentModal(false)} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', color: '#A68F81', padding: '14px', borderRadius: '10px', textAlign: 'center', fontSize: '12px', cursor: 'pointer' }}>CANCEL</div>
             </div>
           </div>
         )}
 
-        <div style={{ padding: '14px 18px', borderRadius: '16px', backgroundColor: 'rgba(20, 13, 12, 0.45)', border: '1px solid rgba(245, 230, 211, 0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* Ambient Broadcast Switch Node */}
+        <div style={{ padding: '16px 20px', borderRadius: '20px', backgroundColor: 'rgba(20, 13, 12, 0.6)', border: '1px solid rgba(245, 230, 211, 0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: '12px', color: '#F5E6D3' }}>Visible Broadcast Mode</div>
-            {isVisible && <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '2px' }}>Stationed at {selectedStation}</div>}
+            <div style={{ fontSize: '13px', fontWeight: '400', color: '#F5E6D3', letterSpacing: '0.3px' }}>Visible Broadcast Mode</div>
+            {isVisible && <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '3px' }}>Stationed privately at {selectedStation}</div>}
           </div>
-          <div onClick={() => { if (!isVisible) { if (!fullName.trim() || !role.trim() || !domain.trim()) { setSystemAlert("Fill in presence card details first."); setTimeout(() => setSystemAlert(null), 3000); return; } setShowIntentModal(true); } else { setIsVisible(false); supabase.from('active_presence_nodes').delete().eq('id', userId); } }} style={{ width: '44px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
-            <div style={{ width: '18px', height: '18px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '23px' : '3px', transition: 'left 0.2s' }} />
+          <div onClick={() => { if (!isVisible) { if (!fullName.trim() || !role.trim() || !domain.trim()) { setSystemAlert("Complete all directory details first."); setTimeout(() => setSystemAlert(null), 3000); return; } setShowIntentModal(true); } else { setIsVisible(false); supabase.from('active_presence_nodes').delete().eq('id', userId); } }} style={{ width: '46px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer', transition: 'background-color 0.2s' }}>
+            <div style={{ width: '18px', height: '18px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '25px' : '3px', transition: 'left 0.2s', boxShadow: '0 2px 5px rgba(0,0,0,0.4)' }} />
           </div>
         </div>
 
-        <div style={{ height: '56px', backgroundColor: 'rgba(20, 13, 12, 0.85)', borderRadius: '20px', border: '1px solid rgba(245, 230, 211, 0.05)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', backdropFilter: 'blur(30px)' }}>
-          <div onClick={() => { setActiveTab('room'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'room' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>ROOM</div>
-          <div onClick={() => { setActiveTab('vault'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'vault' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>VAULT</div>
-          <div onClick={() => { setActiveTab('presence'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'presence' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>PRESENCE</div>
+        {/* System Tab Bar Switchboard */}
+        <div style={{ height: '56px', backgroundColor: 'rgba(20, 13, 12, 0.95)', borderRadius: '20px', border: '1px solid rgba(245, 230, 211, 0.05)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', backdropFilter: 'blur(30px)' }}>
+          <div onClick={() => { setActiveTab('room'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'room' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px', fontWeight: activeTab === 'room' ? '600' : '400' }}>ROOM</div>
+          <div onClick={() => { setActiveTab('vault'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'vault' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px', fontWeight: activeTab === 'vault' ? '600' : '400' }}>VAULT</div>
+          <div onClick={() => { setActiveTab('presence'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'presence' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px', fontWeight: activeTab === 'presence' ? '600' : '400' }}>PRESENCE</div>
         </div>
       </div>
 
