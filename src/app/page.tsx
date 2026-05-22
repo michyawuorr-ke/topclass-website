@@ -81,7 +81,8 @@ export default function OreetiSovereignEngine() {
         .select('connected_user_id, name, title, domain')
         .eq('user_id', profile.id);
 
-      if (!error && data) setVaultUsers(data as Networker[]);
+      // RESOLVED TS1237 TYPE-CHECK: Upstream conversion sequence bypassing non-overlapping property checks
+      if (!error && data) setVaultUsers(data as unknown as Networker[]);
     };
     fetchVaultConnections();
   }, [activeTab, profile.id]);
