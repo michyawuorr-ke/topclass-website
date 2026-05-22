@@ -22,7 +22,7 @@ export default function OreetiAmbientEngine() {
   const [isVisible, setIsVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false); 
   
-  // Clean states
+  // Cohesive local states
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('');
   const [domain, setDomain] = useState('');
@@ -35,7 +35,7 @@ export default function OreetiAmbientEngine() {
   const [ambientMeetingGuide, setAmbientMeetingGuide] = useState<string | null>(null);
   const [systemAlert, setSystemAlert] = useState<string | null>(null);
 
-  // Feeds
+  // Active Discovery Feeds
   const [roomUsers, setRoomUsers] = useState<Networker[]>([]);
   const [vaultUsers, setVaultUsers] = useState<any[]>([]);
   const [incomingHandshakes, setIncomingHandshakes] = useState<any[]>([]);
@@ -46,8 +46,16 @@ export default function OreetiAmbientEngine() {
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
+  // Establish stable peer identity node on initial load
   useEffect(() => {
-    setUserId(`node-${Math.random().toString(36).substring(2, 15)}`);
+    const existingId = localStorage.getItem('presence_peer_id');
+    if (existingId) {
+      setUserId(existingId);
+    } else {
+      const newId = `node-${Math.random().toString(36).substring(2, 15)}`;
+      localStorage.setItem('presence_peer_id', newId);
+      setUserId(newId);
+    }
   }, []);
 
   useEffect(() => {
@@ -62,6 +70,7 @@ export default function OreetiAmbientEngine() {
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(dynamicQrToken)}&color=e6a15c&bgcolor=0e0908`;
 
+  // Persistent heartbeats to ensure secondary testing nodes stay visible to each other
   useEffect(() => {
     if (!isVisible || !userId) return;
     const heartbeat = setInterval(async () => {
@@ -69,9 +78,25 @@ export default function OreetiAmbientEngine() {
         .from('active_presence_nodes')
         .update({ last_seen: new Date().toISOString() })
         .eq('id', userId);
-    }, 15000);
+    }, 5000); // Accelerated heartbeat for instant local feedback loop testing
     return () => clearInterval(heartbeat);
   }, [isVisible, userId]);
+
+  // Dynamic discovery pipeline pulling active broadcast nodes inside the space
+  const fetchActiveNodes = async () => {
+    if (!userId) return;
+    // Widened horizon window slightly to capture secondary simulated test devices immediately
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from('active_presence_nodes')
+      .select('id, name, title, domain, intent, current_station')
+      .gt('last_seen', oneHourAgo)
+      .not('id', 'eq', userId);
+
+    if (data) {
+      setRoomUsers(data as Networker[]);
+    }
+  };
 
   useEffect(() => {
     if (!isVisible || !userId) {
@@ -79,21 +104,11 @@ export default function OreetiAmbientEngine() {
       return;
     }
 
-    const fetchActiveNodes = async () => {
-      const halfHourAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-      const { data } = await supabase
-        .from('active_presence_nodes')
-        .select('id, name, title, domain, intent')
-        .gt('last_seen', halfHourAgo)
-        .not('id', 'eq', userId);
-
-      if (data) setRoomUsers(data as Networker[]);
-    };
-
     fetchActiveNodes();
 
+    // Direct subscription channel binding client arrays together in real-time
     const realTimeChannel = supabase
-      .channel(`room_evolution`)
+      .channel('room_ambient_sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'active_presence_nodes' }, () => {
         fetchActiveNodes();
       })
@@ -145,13 +160,7 @@ export default function OreetiAmbientEngine() {
       .channel('handshake_alerts')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vault_connections' }, async (payload: any) => {
         if (payload.new.user_id === userId && payload.new.connection_method === 'discovery' && payload.new.handshake_accepted === true) {
-          const { data: targetNode } = await supabase
-            .from('active_presence_nodes')
-            .select('current_station, name')
-            .eq('id', payload.new.connected_user_id)
-            .single();
-
-          setAmbientMeetingGuide("Handshake Established. Peer found at landmark station.");
+          setAmbientMeetingGuide("Handshake matching loop verified. Signal lock achieved.");
         }
       })
       .subscribe();
@@ -162,29 +171,9 @@ export default function OreetiAmbientEngine() {
     };
   }, [activeTab, userId]);
 
-  useEffect(() => {
-    if (isScanning && activeTab === 'room' && userId) {
-      const nativeScanner = new Html5Qrcode("reader-engine");
-      html5QrCodeRef.current = nativeScanner;
-      nativeScanner.start(
-        { facingMode: "environment" }, 
-        { fps: 24, qrbox: (w, h) => ({ width: Math.floor(Math.min(w, h) * 0.75), height: Math.floor(Math.min(w, h) * 0.75) }) },
-        async (decodedText) => {
-          const cleanId = decodedText.split('||')[0];
-          if (html5QrCodeRef.current) { await html5QrCodeRef.current.stop().catch(() => {}); html5QrCodeRef.current = null; setIsScanning(false); }
-          await supabase.from('vault_connections').insert({ user_id: userId, connected_user_id: cleanId, connection_method: 'scan', created_at: new Date().toISOString() });
-          setActiveTab('vault');
-          syncDatabaseFeeds();
-        },
-        () => {}
-      ).catch(() => {});
-    }
-    return () => { if (html5QrCodeRef.current) { html5QrCodeRef.current.stop().catch(() => {}); html5QrCodeRef.current = null; } };
-  }, [isScanning, activeTab, userId]);
-
   const triggerDiscoveryHandshake = async (targetUserId: string) => {
     if (pendingSentCount >= 3) {
-      setSystemAlert("Connection queue full.");
+      setSystemAlert("Simultaneous connection vector limit capped.");
       setTimeout(() => setSystemAlert(null), 4000);
       return;
     }
@@ -195,7 +184,7 @@ export default function OreetiAmbientEngine() {
   const acceptDiscoveryHandshake = async (requesterId: string) => {
     await supabase.from('vault_connections').update({ handshake_accepted: true }).eq('user_id', requesterId).eq('connected_user_id', userId);
     await supabase.from('vault_connections').insert({ user_id: userId, connected_user_id: requesterId, connection_method: 'discovery', handshake_accepted: true });
-    setAmbientMeetingGuide("Handshake Established.");
+    setAmbientMeetingGuide("Proximity connection securely compiled.");
     syncDatabaseFeeds();
   };
 
@@ -206,7 +195,7 @@ export default function OreetiAmbientEngine() {
 
   const confirmVisibility = async () => {
     if (!fullName.trim() || !role.trim() || !domain.trim() || !currentIntent.trim() || !selectedStation.trim()) {
-      setSystemAlert("Complete profile entries before broadcasting signal.");
+      setSystemAlert("Populate profile asset cards before emitting discovery frequencies.");
       setTimeout(() => setSystemAlert(null), 4000);
       return;
     }
@@ -223,68 +212,71 @@ export default function OreetiAmbientEngine() {
       room_anchor: 'global_unfiltered_presence',
       last_seen: new Date().toISOString()
     });
+    
+    setTimeout(fetchActiveNodes, 500);
   };
 
   return (
     <div style={{ margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#0A0605', color: '#FDFBF7', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box' }}>
       
-      {/* Toast Alert Layer */}
+      {/* Toast Alert Systems */}
       <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {ambientMeetingGuide && (
-          <div onClick={() => setAmbientMeetingGuide(null)} style={{ background: '#140D0C', border: '1px solid #E6A15C', borderRadius: '12px', padding: '16px', color: '#F5E6D3', fontSize: '13px', lineHeight: '1.4', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', cursor: 'pointer' }}>
+          <div onClick={() => setAmbientMeetingGuide(null)} style={{ background: '#140D0C', border: '1px solid #E6A15C', borderRadius: '12px', padding: '16px', color: '#F5E6D3', fontSize: '12px', trackingLetter: '0.5px', cursor: 'pointer' }}>
             {ambientMeetingGuide}
           </div>
         )}
         {systemAlert && (
-          <div style={{ background: '#1C1210', border: '1px solid rgba(230,161,92,0.15)', borderRadius: '12px', padding: '12px 16px', color: '#A68F81', fontSize: '12px', textAlign: 'center' }}>
+          <div style={{ background: '#1C1210', border: '1px solid rgba(230,161,92,0.1)', borderRadius: '12px', padding: '12px 16px', color: '#A68F81', fontSize: '11px', textAlign: 'center' }}>
             {systemAlert}
           </div>
         )}
       </div>
 
-      <div style={{ flex: 1, padding: '40px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '40px' }}>
+      <div style={{ flex: 1, padding: '48px 28px 0 28px', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '40px' }}>
         
         {activeTab === 'room' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '10px', color: '#8A7366', fontWeight: '600', letterSpacing: '1.5px' }}>PEOPLE NEARBY • QUEUE ({pendingSentCount}/3)</div>
-              </div>
-              <div onClick={async () => { if (isScanning && html5QrCodeRef.current) { await html5QrCodeRef.current.stop().catch(() => {}); html5QrCodeRef.current = null; } setIsScanning(!isScanning); }} style={{ fontSize: '10px', color: '#E6A15C', border: '1px solid rgba(230,161,92,0.2)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
-                {isScanning ? 'CLOSE' : 'SCAN CARD'}
+                <div style={{ fontSize: '10px', color: '#8A7366', fontWeight: '600', letterSpacing: '2px' }}>DISCOVERED SIGNALS ({roomUsers.length})</div>
               </div>
             </div>
 
-            {isScanning && (
-              <div style={{ width: '100%', maxWidth: '340px', alignSelf: 'center', overflow: 'hidden', borderRadius: '24px', border: '1px solid rgba(230,161,92,0.15)', background: '#000' }}>
-                <div id="reader-engine" style={{ width: '100%', minHeight: '260px' }}></div>
-                <style>{` #reader-engine video { width: 100% !important; height: auto !important; min-height: 260px !important; object-fit: cover !important; display: block !important; border-radius: 24px !important; } #reader-engine { border: none !important; } `}</style>
+            {roomUsers.length === 0 ? (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4E3C36', fontSize: '12px', fontStyle: 'italic', textAlign: 'center', padding: '40px 20px', lineHeight: '1.6' }}>
+                No active signals broadcasting in your immediate radius.<br/>Ensure secondary devices are set to "Live Broadcast Mode".
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {roomUsers.map(user => (
+                  <div key={user.id} style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#110D0C', border: '1px solid rgba(230,161,92,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ flex: 1, paddingRight: '16px' }}>
+                      <div style={{ fontSize: '16px', fontWeight: '400', color: '#F5E6D3', letterSpacing: '-0.2px' }}>{user.name}</div>
+                      <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '4px', opacity: 0.85 }}>{user.title} <span style={{ color: '#8A7366' }}>@ {user.domain}</span></div>
+                      {user.current_station && (
+                        <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '8px', letterSpacing: '0.5px' }}>STATION: {user.current_station}</div>
+                      )}
+                    </div>
+                    <div onClick={() => triggerDiscoveryHandshake(user.id)} style={{ padding: '10px 16px', backgroundColor: 'rgba(230,161,92,0.08)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', borderRadius: '8px', fontSize: '10px', fontWeight: '600', letterSpacing: '1px', cursor: 'pointer' }}>
+                      PING
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {roomUsers.map(user => (
-                <div key={user.id} style={{ padding: '20px', borderRadius: '16px', backgroundColor: 'rgba(20, 13, 12, 0.4)', border: '1px solid rgba(230, 161, 92, 0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ flex: 1, paddingRight: '12px' }}>
-                    <div style={{ fontSize: '15px', fontWeight: '500', color: '#F5E6D3' }}>{user.name} <span style={{ fontSize: '12px', color: '#8A7366', fontWeight: '300', marginLeft: '4px' }}>— {user.title}</span></div>
-                    <div style={{ fontSize: '11px', color: '#E6A15C', marginTop: '6px' }}>"{user.intent}"</div>
-                  </div>
-                  <div onClick={() => triggerDiscoveryHandshake(user.id)} style={{ padding: '10px 14px', backgroundColor: '#E6A15C', color: '#140D0C', borderRadius: '8px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>PING</div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
         {activeTab === 'vault' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div>
-              <div style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '2px', color: '#E6A15C', textTransform: 'uppercase', marginBottom: '12px' }}>Collected Network</div>
+              <div style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '2px', color: '#E6A15C', textTransform: 'uppercase', marginBottom: '16px' }}>Secure Vault Network</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {vaultUsers.map((user, i) => (
-                  <div key={i} style={{ backgroundColor: 'rgba(20, 13, 12, 0.4)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(230,161,92,0.05)' }}>
-                    <div style={{ fontSize: '16px', fontWeight: '500', color: '#FDFBF7' }}>{user.name || 'Anonymous Peer'}</div>
-                    <div style={{ fontSize: '12px', color: '#D9C3B0', marginTop: '2px' }}>{user.title || 'Professional Context Established'}</div>
+                  <div key={i} style={{ backgroundColor: '#110D0C', borderRadius: '20px', padding: '24px', border: '1px solid rgba(230,161,92,0.02)' }}>
+                    <div style={{ fontSize: '16px', fontWeight: '400', color: '#FDFBF7' }}>{user.name || 'Secure Connection'}</div>
+                    <div style={{ fontSize: '12px', color: '#D9C3B0', marginTop: '4px' }}>{user.title} • {user.domain}</div>
                   </div>
                 ))}
               </div>
@@ -295,91 +287,91 @@ export default function OreetiAmbientEngine() {
         {activeTab === 'presence' && (
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: '32px', alignItems: 'center' }}>
             {incomingHandshakes.map((req, idx) => (
-              <div key={idx} style={{ width: '100%', maxWidth: '340px', backgroundColor: '#140D0C', border: '1px solid rgba(230,161,92,0.25)', borderRadius: '16px', padding: '18px', boxSizing: 'border-box' }}>
-                <div style={{ fontSize: '9px', fontWeight: '600', color: '#E6A15C', letterSpacing: '1.5px', marginBottom: '6px' }}>INCOMING CONNECTION REQUEST</div>
-                <div style={{ fontSize: '13px', color: '#F5E6D3', marginBottom: '12px' }}><strong>{req.name}</strong> matched you. Connect?</div>
+              <div key={idx} style={{ width: '100%', maxWidth: '350px', backgroundColor: '#140D0C', border: '1px solid rgba(230,161,92,0.2)', borderRadius: '20px', padding: '20px', boxSizing: 'border-box' }}>
+                <div style={{ fontSize: '9px', fontWeight: '600', color: '#E6A15C', letterSpacing: '1.5px', marginBottom: '8px' }}>INCOMING VERIFICATION LAYER</div>
+                <div style={{ fontSize: '13px', color: '#F5E6D3', marginBottom: '14px' }}>Authorize connection handshake request from <strong>{req.name}</strong>?</div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button onClick={() => acceptDiscoveryHandshake(req.user_id)} style={{ flex: 1, padding: '10px', background: '#E6A15C', color: '#0A0605', fontWeight: '600', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '11px' }}>ACCEPT</button>
-                  <button onClick={() => declineDiscoveryHandshake(req.user_id)} style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', color: '#8A7366', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '11px' }}>BYPASS</button>
+                  <button onClick={() => declineDiscoveryHandshake(req.user_id)} style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.02)', color: '#8A7366', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '11px' }}>BYPASS</button>
                 </div>
               </div>
             ))}
 
-            {/* Premium, Highly Spacious, Minimalist Asset Card */}
-            <div style={{ width: '100%', maxWidth: '350px', backgroundColor: '#110D0C', borderRadius: '28px', padding: '36px 28px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', position: 'relative', border: '1px solid rgba(255,255,255,0.015)', boxShadow: '0 30px 60px -15px rgba(0,0,0,0.6)' }}>
+            {/* Perfect Premium Spacious Luxury Identity Asset Card */}
+            <div style={{ width: '100%', maxWidth: '350px', backgroundColor: '#110D0C', borderRadius: '28px', padding: '40px 32px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', position: 'relative', border: '1px solid rgba(230,161,92,0.02)', boxShadow: '0 35px 70px -15px rgba(0,0,0,0.7)' }}>
               
-              {/* Static Global Edit Icon Component (Always Pencil icon) */}
+              {/* Clean Absolute Global Edit Handle (Always Pencil SVG Icon) */}
               <div 
                 onClick={() => setIsEditing(!isEditing)} 
-                style={{ position: 'absolute', top: '28px', right: '28px', width: '34px', height: '34px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.03)', background: 'rgba(255,255,255,0.01)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                style={{ position: 'absolute', top: '32px', right: '32px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid rgba(230,161,92,0.1)', background: 'rgba(20,13,12,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s ease' }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E6A15C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E6A15C" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
               </div>
 
               {isEditing ? (
-                /* Boxless Spacious Inputs with Elegant Top Labels */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '16px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1px', textTransform: 'uppercase' }}>Full Name</span>
+                /* True Premium Boxless Input Setup — Infused with Champagne & Cognac Tone Tiers */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', marginTop: '12px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '500' }}>Full Name</span>
                     <input 
                       type="text" 
-                      placeholder="e.g. Elena Rostova" 
+                      placeholder="e.g. Adriaan Louw" 
                       value={fullName} 
                       onChange={(e) => setFullName(e.target.value)} 
-                      style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '18px', fontWeight: '500' }} 
+                      style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#FDFBF7', boxSizing: 'border-box', outline: 'none', fontSize: '20px', fontWeight: '300', letterSpacing: '-0.2px' }} 
                     />
                   </div>
                   
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1px', textTransform: 'uppercase' }}>Professional Role</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '500' }}>Professional Title</span>
                     <input 
                       type="text" 
-                      placeholder="e.g. Product Architect" 
+                      placeholder="e.g. Lead Architect" 
                       value={role} 
                       onChange={(e) => setRole(e.target.value)} 
-                      style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#A5B4FC', boxSizing: 'border-box', outline: 'none', fontSize: '14px', letterSpacing: '0.5px' }} 
+                      style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#E6A15C', boxSizing: 'border-box', outline: 'none', fontSize: '15px', fontWeight: '400', letterSpacing: '0.2px' }} 
                     />
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1px', textTransform: 'uppercase' }}>Operational Domain</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '500' }}>Operational Domain</span>
                     <input 
                       type="text" 
-                      placeholder="e.g. Nexus Labs" 
+                      placeholder="e.g. Sovereign Studio" 
                       value={domain} 
                       onChange={(e) => setDomain(e.target.value)} 
-                      style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#94A3B8', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
+                      style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#D9C3B0', boxSizing: 'border-box', outline: 'none', fontSize: '14px', fontWeight: '300' }} 
                     />
                   </div>
 
-                  {/* Elegant Tiny Save Button Node inside Editor Panel */}
+                  {/* Clean Dedicated Inline Save Mechanism */}
                   <div 
                     onClick={() => setIsEditing(false)}
-                    style={{ marginTop: '8px', alignSelf: 'flex-start', padding: '8px 18px', borderRadius: '8px', background: 'rgba(230,161,92,0.08)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', fontSize: '10px', fontWeight: '600', letterSpacing: '1.5px', cursor: 'pointer' }}
+                    style={{ marginTop: '12px', alignSelf: 'flex-start', padding: '10px 22px', borderRadius: '10px', background: 'rgba(230,161,92,0.06)', border: '1px solid rgba(230,161,92,0.25)', color: '#E6A15C', fontSize: '10px', fontWeight: '600', letterSpacing: '2px', cursor: 'pointer' }}
                   >
-                    SAVE CHANGES
+                    SAVE PROFILE
                   </div>
                 </div>
               ) : (
-                /* Uncluttered Premium Static Layout Engine */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>
-                  <div style={{ fontSize: '22px', fontWeight: '600', color: fullName ? '#FDFBF7' : '#3E2E2A', letterSpacing: '-0.3px' }}>
+                /* Uncluttered Spatial Presentation Layer — Pristine Champagne & Muted Cognac Flow */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
+                  <div style={{ fontSize: '24px', fontWeight: '300', color: fullName ? '#FDFBF7' : '#3E2E2A', letterSpacing: '-0.5px', lineHeight: '1.2' }}>
                     {fullName || 'Identity Unassigned'}
                   </div>
                   
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
                     {role ? (
-                      <div style={{ background: 'rgba(165, 180, 252, 0.06)', border: '1px solid rgba(165, 180, 252, 0.15)', borderRadius: '100px', padding: '5px 12px', fontSize: '9px', fontWeight: '700', color: '#A5B4FC', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                      <div style={{ color: '#E6A15C', fontSize: '14px', fontWeight: '400', letterSpacing: '0.5px' }}>
                         {role}
                       </div>
                     ) : (
-                      <div style={{ fontSize: '9px', color: '#3E2E2A', textTransform: 'uppercase', letterSpacing: '1px' }}>Role Empty</div>
+                      <div style={{ fontSize: '11px', color: '#3E2E2A', textTransform: 'uppercase', letterSpacing: '1px' }}>Designation Cryptic</div>
                     )}
 
-                    <div style={{ fontSize: '14px', color: domain ? '#94A3B8' : '#3E2E2A', fontWeight: '400', letterSpacing: '0.2px' }}>
-                      {domain || 'Domain Empty'}
+                    <div style={{ fontSize: '13px', color: domain ? '#D9C3B0' : '#3E2E2A', fontWeight: '300', opacity: 0.8 }}>
+                      {domain || 'Domain Space Empty'}
                     </div>
                   </div>
                 </div>
@@ -389,30 +381,30 @@ export default function OreetiAmbientEngine() {
 
             {isVisible ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '16px', borderRadius: '20px', background: 'rgba(20, 13, 12, 0.3)' }}>
-                <img src={qrCodeUrl} alt="Dynamic Key" style={{ width: '130px', height: '130px', borderRadius: '12px' }} />
-                <div style={{ fontSize: '8px', color: '#E6A15C', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '600' }}>Broadcaster Active</div>
+                <img src={qrCodeUrl} alt="Dynamic Identity Token" style={{ width: '130px', height: '130px', borderRadius: '12px' }} />
+                <div style={{ fontSize: '8px', color: '#E6A15C', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '600' }}>Active Signal Field Emitting</div>
               </div>
             ) : (
-              <div style={{ padding: '0 20px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', letterSpacing: '0.5px', fontStyle: 'italic', maxWidth: '280px', lineHeight: '1.5' }}>Engage the pencil component to view or edit your network card identity.</div>
+              <div style={{ padding: '0 24px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', letterSpacing: '0.5px', fontStyle: 'italic', maxWidth: '290px', lineHeight: '1.6' }}>Awaken the pencil micro-component to bind metadata streams to your terminal node.</div>
             )}
           </div>
         )}
 
       </div>
 
-      {/* Persistent Base Control Layout */}
-      <div style={{ background: 'linear-gradient(to top, #0A0605 85%, rgba(10, 6, 5, 0))', padding: '0 24px 30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box' }}>
+      {/* Persistent Base Interface Switches */}
+      <div style={{ background: 'linear-gradient(to top, #0A0605 85%, rgba(10, 6, 5, 0))', padding: '0 24px 32px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box' }}>
         
-        {/* Simplified Broadcast Details Slide-up Node */}
+        {/* Streamlined Pre-Live Configuration Interstitial */}
         {showIntentModal && (
-          <div style={{ backgroundColor: '#140D0C', border: '1px solid rgba(230, 161, 92, 0.15)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
+          <div style={{ backgroundColor: '#110D0C', border: '1px solid rgba(230, 161, 92, 0.12)', borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px', boxShadow: '0 25px 50px rgba(0,0,0,0.6)' }}>
             <div style={{ position: 'relative' }}>
               <input 
                 type="text" 
                 placeholder="Current Focus Intent?" 
                 value={currentIntent} 
                 onChange={(e) => setCurrentUrlIntent(e.target.value)} 
-                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '10px', padding: '14px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }}
+                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(230, 161, 92, 0.1)', borderRadius: '12px', padding: '16px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
               />
             </div>
             
@@ -422,33 +414,33 @@ export default function OreetiAmbientEngine() {
                 placeholder="Private Landmark Station?" 
                 value={selectedStation} 
                 onChange={(e) => setSelectedStation(e.target.value)} 
-                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '10px', padding: '14px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
+                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(230, 161, 92, 0.1)', borderRadius: '12px', padding: '16px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
               />
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-              <div onClick={confirmVisibility} style={{ flex: 1, backgroundColor: '#E6A15C', color: '#140D0C', padding: '14px', borderRadius: '10px', textAlign: 'center', fontSize: '12px', fontWeight: '600', cursor: 'pointer', letterSpacing: '1px' }}>GO LIVE</div>
-              <div onClick={() => setShowIntentModal(false)} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', color: '#A68F81', padding: '14px', borderRadius: '10px', textAlign: 'center', fontSize: '12px', cursor: 'pointer' }}>CANCEL</div>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+              <div onClick={confirmVisibility} style={{ flex: 1, backgroundColor: '#E6A15C', color: '#140D0C', padding: '15px', borderRadius: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '600', cursor: 'pointer', letterSpacing: '1.5px' }}>EMIT SIGNAL</div>
+              <div onClick={() => setShowIntentModal(false)} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.02)', color: '#8A7366', padding: '15px', borderRadius: '12px', textAlign: 'center', fontSize: '11px', cursor: 'pointer', letterSpacing: '0.5px' }}>CANCEL</div>
             </div>
           </div>
         )}
 
-        {/* Ambient Broadcast Switch Node */}
-        <div style={{ padding: '16px 20px', borderRadius: '20px', backgroundColor: 'rgba(20, 13, 12, 0.6)', border: '1px solid rgba(245, 230, 211, 0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* Ambient Broadcast Toggle Node */}
+        <div style={{ padding: '18px 24px', borderRadius: '24px', backgroundColor: 'rgba(17, 13, 12, 0.7)', border: '1px solid rgba(230, 161, 92, 0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: '13px', fontWeight: '400', color: '#F5E6D3', letterSpacing: '0.3px' }}>Visible Broadcast Mode</div>
-            {isVisible && <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '3px' }}>Stationed at {selectedStation}</div>}
+            {isVisible && <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '4px', letterSpacing: '0.5px' }}>Active at {selectedStation}</div>}
           </div>
-          <div onClick={() => { if (!isVisible) { if (!fullName.trim() || !role.trim() || !domain.trim()) { setSystemAlert("Complete your profile card details first."); setTimeout(() => setSystemAlert(null), 3000); return; } setShowIntentModal(true); } else { setIsVisible(false); supabase.from('active_presence_nodes').delete().eq('id', userId); } }} style={{ width: '46px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer', transition: 'background-color 0.2s' }}>
-            <div style={{ width: '18px', height: '18px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '25px' : '3px', transition: 'left 0.2s', boxShadow: '0 2px 5px rgba(0,0,0,0.4)' }} />
+          <div onClick={() => { if (!isVisible) { if (!fullName.trim() || !role.trim() || !domain.trim()) { setSystemAlert("Populate your network asset card details first."); setTimeout(() => setSystemAlert(null), 3000); return; } setShowIntentModal(true); } else { setIsVisible(false); supabase.from('active_presence_nodes').delete().eq('id', userId); setRoomUsers([]); } }} style={{ width: '46px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer', transition: 'background-color 0.25s ease' }}>
+            <div style={{ width: '18px', height: '18px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '25px' : '3px', transition: 'left 0.25s ease', boxShadow: '0 2px 6px rgba(0,0,0,0.5)' }} />
           </div>
         </div>
 
-        {/* Tab Selection Bar Switchboard */}
-        <div style={{ height: '56px', backgroundColor: 'rgba(20, 13, 12, 0.95)', borderRadius: '20px', border: '1px solid rgba(245, 230, 211, 0.05)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', backdropFilter: 'blur(30px)' }}>
-          <div onClick={() => { setActiveTab('room'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'room' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px', fontWeight: activeTab === 'room' ? '600' : '400' }}>ROOM</div>
-          <div onClick={() => { setActiveTab('vault'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'vault' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px', fontWeight: activeTab === 'vault' ? '600' : '400' }}>VAULT</div>
-          <div onClick={() => { setActiveTab('presence'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'presence' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px', fontWeight: activeTab === 'presence' ? '600' : '400' }}>PRESENCE</div>
+        {/* System Tab Selector Switchboard */}
+        <div style={{ height: '56px', backgroundColor: 'rgba(17, 13, 12, 0.95)', borderRadius: '24px', border: '1px solid rgba(230,161,92,0.03)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', backdropFilter: 'blur(30px)' }}>
+          <div onClick={() => { setActiveTab('room'); setIsScanning(false); fetchActiveNodes(); }} style={{ fontSize: '10px', letterSpacing: '2px', color: activeTab === 'room' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '16px', fontWeight: activeTab === 'room' ? '600' : '400' }}>ROOM</div>
+          <div onClick={() => { setActiveTab('vault'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '2px', color: activeTab === 'vault' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '16px', fontWeight: activeTab === 'vault' ? '600' : '400' }}>VAULT</div>
+          <div onClick={() => { setActiveTab('presence'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '2px', color: activeTab === 'presence' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '16px', fontWeight: activeTab === 'presence' ? '600' : '400' }}>PRESENCE</div>
         </div>
       </div>
 
