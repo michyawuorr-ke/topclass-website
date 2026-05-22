@@ -4,8 +4,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Html5Qrcode } from 'html5-qrcode';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+// Your Verified Production Database Instance Connections
+const SUPABASE_URL = 'https://ikhkpdfgjqqbvkyvfgrw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlraGtwZGZnanFxYnZreXZmZ3J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjE1NzMsImV4cCI6MjA5NDg5NzU3M30.RWBlgX-xH9aYTNBjwrRNeeogpoIvkSRXh08gIDSjb4U';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 interface Networker {
@@ -148,13 +149,9 @@ export default function OreetiAmbientEngine() {
     if (!userId) return;
     syncDatabaseFeeds();
     const intervalSync = setInterval(syncDatabaseFeeds, 10000);
-
-    return () => {
-      clearInterval(intervalSync);
-    };
+    return () => clearInterval(intervalSync);
   }, [activeTab, userId]);
 
-  // Scanner Hardware Hook Execution Lifecycle
   const startQrScanner = async () => {
     setIsScanning(true);
     setTimeout(async () => {
@@ -271,7 +268,6 @@ export default function OreetiAmbientEngine() {
               </div>
             </div>
 
-            {/* Live Camera Viewport Element */}
             {isScanning && (
               <div id="room-scanner-viewport" style={{ width: '100%', maxWidth: '350px', aspectRatio: '1/1', borderRadius: '24px', overflow: 'hidden', backgroundColor: '#110D0C', border: '1px solid rgba(230,161,92,0.1)', alignSelf: 'center' }} />
             )}
@@ -323,7 +319,6 @@ export default function OreetiAmbientEngine() {
               </div>
             ))}
 
-            {/* Premium Asset Card Layout */}
             <div style={{ width: '100%', maxWidth: '350px', backgroundColor: '#110D0C', borderRadius: '28px', padding: '40px 32px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', position: 'relative', border: '1px solid rgba(230,161,92,0.02)', boxShadow: '0 35px 70px -15px rgba(0,0,0,0.7)' }}>
               
               <div 
