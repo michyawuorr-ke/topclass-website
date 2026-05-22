@@ -20,8 +20,9 @@ interface Networker {
 export default function OreetiAmbientEngine() {
   const [activeTab, setActiveTab] = useState<'room' | 'vault' | 'presence'>('presence');
   const [isVisible, setIsVisible] = useState(false);
+  const [isEditing, setIsEditing] = useState(true); // Default true so fresh users know to type
   
-  // Clean, zero-placeholder directory states
+  // Clean states
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('');
   const [domain, setDomain] = useState('');
@@ -45,7 +46,6 @@ export default function OreetiAmbientEngine() {
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
-  // Establish unique node identity safely
   useEffect(() => {
     setUserId(`node-${Math.random().toString(36).substring(2, 15)}`);
   }, []);
@@ -73,7 +73,6 @@ export default function OreetiAmbientEngine() {
     return () => clearInterval(heartbeat);
   }, [isVisible, userId]);
 
-  // Real-time room matching stream
   useEffect(() => {
     if (!isVisible || !userId) {
       setRoomUsers([]);
@@ -163,7 +162,6 @@ export default function OreetiAmbientEngine() {
     };
   }, [activeTab, userId]);
 
-  // QR Scanning Engine Architecture
   useEffect(() => {
     if (isScanning && activeTab === 'room' && userId) {
       const nativeScanner = new Html5Qrcode("reader-engine");
@@ -211,7 +209,7 @@ export default function OreetiAmbientEngine() {
 
   const confirmVisibility = async () => {
     if (!fullName.trim() || !role.trim() || !domain.trim() || !currentIntent.trim() || !selectedStation.trim()) {
-      setSystemAlert("Complete all directory details first.");
+      setSystemAlert("Complete all fields before going live.");
       setTimeout(() => setSystemAlert(null), 4000);
       return;
     }
@@ -233,7 +231,7 @@ export default function OreetiAmbientEngine() {
   return (
     <div style={{ margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#0A0605', color: '#FDFBF7', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box' }}>
       
-      {/* Ambient Toast Stack */}
+      {/* Toast Alert Engine */}
       <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {ambientMeetingGuide && (
           <div onClick={() => setAmbientMeetingGuide(null)} style={{ background: '#140D0C', border: '1px solid #E6A15C', borderRadius: '12px', padding: '16px', color: '#F5E6D3', fontSize: '13px', lineHeight: '1.4', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', cursor: 'pointer' }}>
@@ -248,14 +246,13 @@ export default function OreetiAmbientEngine() {
         )}
       </div>
 
-      {/* Main Content Workspace */}
       <div style={{ flex: 1, padding: '32px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '40px' }}>
         
         {activeTab === 'room' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '11px', color: '#8A7366', fontWeight: '600', letterSpacing: '1.5px' }}>PEOPLE NEARBY • QUEUE ({pendingSentCount}/3)</div>
+                <div style={{ fontSize: '10px', color: '#8A7366', fontWeight: '600', letterSpacing: '1.5px' }}>PEOPLE NEARBY • QUEUE ({pendingSentCount}/3)</div>
               </div>
               <div onClick={async () => { if (isScanning && html5QrCodeRef.current) { await html5QrCodeRef.current.stop().catch(() => {}); html5QrCodeRef.current = null; } setIsScanning(!isScanning); }} style={{ fontSize: '10px', color: '#E6A15C', border: '1px solid rgba(230,161,92,0.2)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
                 {isScanning ? 'CLOSE' : 'SCAN CARD'}
@@ -312,61 +309,73 @@ export default function OreetiAmbientEngine() {
               </div>
             ))}
 
-            {/* Premium, High-End Minimal Entry Card */}
-            <div style={{ width: '100%', maxWidth: '340px', backgroundColor: 'rgba(14, 9, 8, 0.7)', borderRadius: '24px', padding: '32px 24px', border: '1px solid rgba(245, 230, 211, 0.035)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Museum Grade Premium Card Layout */}
+            <div style={{ width: '100%', maxWidth: '340px', backgroundColor: 'rgba(14, 9, 8, 0.7)', borderRadius: '24px', padding: '32px 24px', border: '1px solid rgba(245, 230, 211, 0.035)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '24px', position: 'relative' }}>
               
-              <div style={{ position: 'relative' }}>
-                <div style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px', fontWeight: '600' }}>Full Name</div>
-                <input 
-                  type="text" 
-                  disabled={isVisible}
-                  placeholder="—" 
-                  value={fullName} 
-                  onChange={(e) => setFullName(e.target.value)} 
-                  style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(245, 230, 211, 0.1)', padding: '6px 0 10px 0', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '18px', fontWeight: '300', borderRadius: 0 }} 
-                />
+              {/* Minimalist Interactive Edit Handle */}
+              <div 
+                onClick={() => setIsEditing(!isEditing)} 
+                style={{ position: 'absolute', top: '24px', right: '24px', fontSize: '10px', color: '#E6A15C', letterSpacing: '1px', fontWeight: '600', cursor: 'pointer', opacity: 0.8 }}
+              >
+                {isEditing ? '[ SAVE ]' : '[ EDIT ]'}
               </div>
 
-              <div style={{ position: 'relative' }}>
-                <div style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px', fontWeight: '600' }}>Professional Role</div>
-                <input 
-                  type="text" 
-                  disabled={isVisible}
-                  placeholder="—" 
-                  value={role} 
-                  onChange={(e) => setRole(e.target.value)} 
-                  style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(245, 230, 211, 0.1)', padding: '6px 0 10px 0', color: '#E6A15C', boxSizing: 'border-box', outline: 'none', fontSize: '14px', borderRadius: 0 }} 
-                />
-              </div>
-
-              <div style={{ position: 'relative' }}>
-                <div style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px', fontWeight: '600' }}>Operational Domain</div>
-                <input 
-                  type="text" 
-                  disabled={isVisible}
-                  placeholder="—" 
-                  value={domain} 
-                  onChange={(e) => setDomain(e.target.value)} 
-                  style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(245, 230, 211, 0.1)', padding: '6px 0 10px 0', color: '#A68F81', boxSizing: 'border-box', outline: 'none', fontSize: '13px', borderRadius: 0 }} 
-                />
-              </div>
+              {isEditing ? (
+                /* Pure Inline Edit Elements — Boxless Layout */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '12px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="Enter Full Name" 
+                    value={fullName} 
+                    onChange={(e) => setFullName(e.target.value)} 
+                    style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(230, 161, 92, 0.2)', padding: '6px 0', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '18px', fontWeight: '300' }} 
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Enter Professional Role" 
+                    value={role} 
+                    onChange={(e) => setRole(e.target.value)} 
+                    style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(230, 161, 92, 0.2)', padding: '6px 0', color: '#E6A15C', boxSizing: 'border-box', outline: 'none', fontSize: '14px' }} 
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Enter Operational Domain" 
+                    value={domain} 
+                    onChange={(e) => setDomain(e.target.value)} 
+                    style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(230, 161, 92, 0.2)', padding: '6px 0', color: '#A68F81', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
+                  />
+                </div>
+              ) : (
+                /* Pristine Visual Output Render */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '12px' }}>
+                  <div style={{ fontSize: '20px', fontWeight: '300', color: fullName ? '#F5E6D3' : '#4E3C36' }}>
+                    {fullName || 'Identity Unassigned'}
+                  </div>
+                  <div style={{ fontSize: '13px', color: role ? '#E6A15C' : '#4E3C36', marginTop: '2px', letterSpacing: '0.3px' }}>
+                    {role || 'Role Unspecified'}
+                  </div>
+                  <div style={{ fontSize: '12px', color: domain ? '#A68F81' : '#4E3C36', marginTop: '4px' }}>
+                    {domain || 'Domain Empty'}
+                  </div>
+                </div>
+              )}
 
             </div>
 
             {isVisible ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '16px', borderRadius: '20px', background: 'rgba(20, 13, 12, 0.3)' }}>
-                <img src={qrCodeUrl} alt="Dynamic Key" style={{ width: '130px', height: '130px', borderRadius: '12px', opacity: 0.9 }} />
+                <img src={qrCodeUrl} alt="Dynamic Key" style={{ width: '130px', height: '130px', borderRadius: '12px' }} />
                 <div style={{ fontSize: '8px', color: '#E6A15C', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '600' }}>Signal Broadcaster Engine Active</div>
               </div>
             ) : (
-              <div style={{ padding: '0 20px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', letterSpacing: '0.5px', fontStyle: 'italic', maxWidth: '280px', lineHeight: '1.5' }}>Fill in directory tags then invoke broadcast layout to step into the shared workspace.</div>
+              <div style={{ padding: '0 20px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', letterSpacing: '0.5px', fontStyle: 'italic', maxWidth: '280px', lineHeight: '1.5' }}>Use edit control above to prime your digital identity asset.</div>
             )}
           </div>
         )}
 
       </div>
 
-      {/* Persistent Bottom Controls Container (Aligned to Thumb Zone Rule) */}
+      {/* Persistent Bottom Control Layout */}
       <div style={{ background: 'linear-gradient(to top, #0A0605 85%, rgba(10, 6, 5, 0))', padding: '0 24px 30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box' }}>
         
         {/* Streamlined Pre-Live Interstitial Context Layer */}
@@ -374,10 +383,9 @@ export default function OreetiAmbientEngine() {
           <div style={{ backgroundColor: '#140D0C', border: '1px solid rgba(230, 161, 92, 0.15)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
             
             <div style={{ position: 'relative' }}>
-              <div style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Current Focus Intent</div>
               <input 
                 type="text" 
-                placeholder="What objective brings you to the room?" 
+                placeholder="Current Focus Intent?" 
                 value={currentIntent} 
                 onChange={(e) => setCurrentUrlIntent(e.target.value)} 
                 style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '10px', padding: '14px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
@@ -385,10 +393,9 @@ export default function OreetiAmbientEngine() {
             </div>
             
             <div style={{ position: 'relative' }}>
-              <div style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '6px' }}>Private Landmark Station</div>
               <input 
                 type="text" 
-                placeholder="Where can matches physically find you?" 
+                placeholder="Private Landmark Station?" 
                 value={selectedStation} 
                 onChange={(e) => setSelectedStation(e.target.value)} 
                 style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '10px', padding: '14px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
@@ -406,9 +413,9 @@ export default function OreetiAmbientEngine() {
         <div style={{ padding: '16px 20px', borderRadius: '20px', backgroundColor: 'rgba(20, 13, 12, 0.6)', border: '1px solid rgba(245, 230, 211, 0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: '13px', fontWeight: '400', color: '#F5E6D3', letterSpacing: '0.3px' }}>Visible Broadcast Mode</div>
-            {isVisible && <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '3px' }}>Stationed privately at {selectedStation}</div>}
+            {isVisible && <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '3px' }}>Stationed at {selectedStation}</div>}
           </div>
-          <div onClick={() => { if (!isVisible) { if (!fullName.trim() || !role.trim() || !domain.trim()) { setSystemAlert("Complete all directory details first."); setTimeout(() => setSystemAlert(null), 3000); return; } setShowIntentModal(true); } else { setIsVisible(false); supabase.from('active_presence_nodes').delete().eq('id', userId); } }} style={{ width: '46px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer', transition: 'background-color 0.2s' }}>
+          <div onClick={() => { if (!isVisible) { if (!fullName.trim() || !role.trim() || !domain.trim()) { setSystemAlert("Complete your premium profile card details first."); setTimeout(() => setSystemAlert(null), 3000); return; } setShowIntentModal(true); } else { setIsVisible(false); supabase.from('active_presence_nodes').delete().eq('id', userId); } }} style={{ width: '46px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer', transition: 'background-color 0.2s' }}>
             <div style={{ width: '18px', height: '18px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '25px' : '3px', transition: 'left 0.2s', boxShadow: '0 2px 5px rgba(0,0,0,0.4)' }} />
           </div>
         </div>
