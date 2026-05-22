@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Html5Qrcode } from 'html5-qrcode';
+import { Analytics } from '@vercel/analytics/react';
 
 const SUPABASE_URL = 'https://ikhkpdfgjqqbvkyvfgrw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlraGtwZGZnanFxYnZreXZmZ3J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjE1NzMsImV4cCI6MjA5NDg5NzU3M30.RWBlgX-xH9aYTNBjwrRNeeogpoIvkSRXh08gIDSjb4U';
@@ -220,7 +221,6 @@ export default function OreetiAmbientEngine() {
                 .single();
 
               if (targetNode) {
-                // FORCE OVERRIDE: Uses direct upsert logic to forcefully override past connection states
                 await supabase.from('vault_connections').upsert({
                   user_id: userId,
                   connected_user_id: targetNode.id,
@@ -343,6 +343,9 @@ export default function OreetiAmbientEngine() {
   return (
     <div style={{ margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#0A0605', color: '#FDFBF7', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box' }}>
       
+      {/* Real-time Web Vitals tracking layer */}
+      <Analytics />
+
       <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999 }}>
         {systemAlert && (
           <div style={{ background: '#1C1210', border: '1px solid #E6A15C', borderRadius: '12px', padding: '14px 16px', color: '#F5E6D3', fontSize: '11px', textAlign: 'center' }}>
