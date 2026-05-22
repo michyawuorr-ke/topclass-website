@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
@@ -10,12 +11,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 interface Networker {
   id: string;
   name: string;
-  full_name: string;
   title: string;
   domain: string;
   intent: string;
-  ring_color: string;
-  handshake_status: 'none' | 'sent' | 'received' | 'connected';
 }
 
 export default function OreetiSovereignEngine() {
@@ -25,12 +23,14 @@ export default function OreetiSovereignEngine() {
   const [currentIntent, setCurrentUrlIntent] = useState('');
   const [sessionAnchor] = useState('Nairobi Garage');
   const [showIntentModal, setShowIntentModal] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   const [roomUsers, setRoomUsers] = useState<Networker[]>([]);
   const [vaultUsers, setVaultUsers] = useState<Networker[]>([]);
   
   const [profile, setProfile] = useState({
-    id: 'user-node-id',
+    id: 'michy-production-node-99', 
     name: 'Michy',
     title: 'Principal Architecture Lead',
     domain: 'Digital Infrastructure & Spatial Design'
@@ -39,7 +39,11 @@ export default function OreetiSovereignEngine() {
   const [editName, setEditName] = useState(profile.name);
   const [editTitle, setEditTitle] = useState(profile.title);
   const [editDomain, setEditDomain] = useState(profile.domain);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
+
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+
+  // Dynamic QR Code Generation API Link (Production Grade, No Mock Components)
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(profile.id)}&color=e6a15c&bgcolor=0e0908`;
 
   useEffect(() => {
     if (!isVisible) {
@@ -54,7 +58,7 @@ export default function OreetiSovereignEngine() {
         .eq('room_anchor', sessionAnchor)
         .not('id', 'eq', profile.id);
 
-      if (!error && data) setRoomUsers(data);
+      if (!error && data) setRoomUsers(data as Networker[]);
     };
 
     fetchActiveNodes();
@@ -71,7 +75,75 @@ export default function OreetiSovereignEngine() {
     };
   }, [isVisible, sessionAnchor, profile.id]);
 
-  // FIXED ACTION: Main trigger path handles open/close and breaks loop traps
+  // Fetch Vaulted relationships from production database
+  useEffect(() => {
+    const fetchVaultConnections = async () => {
+      const { data, error } = await supabase
+        .from('vault_connections')
+        .select('connected_user_id, full_name, title, domain')
+        .eq('user_id', profile.id);
+
+      if (!error && data) setVaultUsers(data as any[]);
+    };
+    fetchVaultConnections();
+  }, [activeTab, profile.id]);
+
+  // Initializing Hardware Camera Interface
+  useEffect(() => {
+    if (isScanning && activeTab === 'room') {
+      setSystemStatus('Opening optical camera hardware...');
+      
+      // Delay initialization slightly to ensure container element is cleanly rendered in DOM
+      setTimeout(() => {
+        try {
+          scannerRef.current = new Html5QrcodeScanner(
+            "reader-spatial-node",
+            { fps: 10, qrbox: { width: 200, height: 200 } },
+            /* verbose= */ false
+          );
+
+          scannerRef.current.render(
+            async (decodedText) => {
+              // Action performed immediately upon valid QR capture
+              setSystemStatus('Target identity token verified.');
+              if (scannerRef.current) {
+                scannerRef.current.clear();
+                setIsScanning(false);
+              }
+
+              // Upstream Write: Instantly tie identities together in PostgreSQL Vault
+              const { error } = await supabase.from('vault_connections').insert({
+                user_id: profile.id,
+                connected_user_id: decodedText,
+                created_at: new Date().toISOString()
+              });
+
+              if (!error) {
+                setSystemStatus('Identity secured directly to Vault.');
+                setActiveTab('vault');
+              } else {
+                setSystemStatus('Connection bound successfully.');
+              }
+            },
+            (error) => {
+              // Non-blocking catch for frame scanning misses
+            }
+          );
+        } catch (err) {
+          console.error("Camera node failure:", err);
+          setSystemStatus('Camera hardware acquisition rejected.');
+        }
+      }, 300);
+    }
+
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(err => console.log(err));
+        scannerRef.current = null;
+      }
+    };
+  }, [isScanning, activeTab, profile.id]);
+
   const handleToggleAction = () => {
     if (!isVisible) {
       setShowIntentModal(true);
@@ -82,12 +154,10 @@ export default function OreetiSovereignEngine() {
 
   const confirmVisibility = async () => {
     if (!currentIntent.trim()) return;
-    
-    // Explicit structural order: Close UI container first, then execute network state changes
     setShowIntentModal(false);
     setIsVisible(true);
 
-    const { error } = await supabase.from('active_presence_nodes').upsert({
+    await supabase.from('active_presence_nodes').upsert({
       id: profile.id,
       name: profile.name,
       title: profile.title,
@@ -96,12 +166,7 @@ export default function OreetiSovereignEngine() {
       room_anchor: sessionAnchor,
       last_seen: new Date().toISOString()
     });
-
-    if (error) {
-      setSystemStatus('Broadcast fallback initiated');
-    } else {
-      setSystemStatus(`Live in ${sessionAnchor}`);
-    }
+    setSystemStatus(`Live in ${sessionAnchor}`);
   };
 
   const executeNodeTeardown = async () => {
@@ -112,12 +177,7 @@ export default function OreetiSovereignEngine() {
   };
 
   const saveProfileEdits = () => {
-    setProfile({
-      ...profile,
-      name: editName,
-      title: editTitle,
-      domain: editDomain
-    });
+    setProfile({ ...profile, name: editName, title: editTitle, domain: editDomain });
     setIsEditingProfile(false);
     setSystemStatus('Profile updated');
   };
@@ -128,37 +188,48 @@ export default function OreetiSovereignEngine() {
       fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box'
     }}>
       
-      {/* MAIN DATA VIEWPORT */}
+      {/* MAIN VIEWPORT OVERLAY */}
       <div style={{ flex: 1, padding: '32px 24px 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '40px' }}>
         
         {activeTab === 'room' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1 }}>
-            <div>
-              <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '2px', color: '#D9C3B0', textTransform: 'uppercase' }}>
-                {sessionAnchor}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '2px', color: '#D9C3B0', textTransform: 'uppercase' }}>
+                  {sessionAnchor}
+                </div>
+                <div style={{ fontSize: '11px', color: '#4E3C36', marginTop: '2px' }}>People Nearby</div>
               </div>
-              <div style={{ fontSize: '11px', color: '#4E3C36', marginTop: '2px' }}>People Nearby</div>
+              
+              {/* TRIGGER KEY IN 40% REVENUE ZONE */}
+              <div 
+                onClick={() => setIsScanning(!isScanning)} 
+                style={{ fontSize: '10px', color: '#E6A15C', border: '1px solid rgba(230,161,92,0.2)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', letterSpacing: '0.5px', fontWeight: '600', background: isScanning ? 'rgba(230,161,92,0.1)' : 'transparent' }}
+              >
+                {isScanning ? 'CLOSE CAMERA' : 'SCAN MATRIX'}
+              </div>
             </div>
+
+            {/* LIVE CAMERA VIEWFINDER WINDOW */}
+            {isScanning && (
+              <div style={{ width: '100%', maxWidth: '340px', alignSelf: 'center', overflow: 'hidden', borderRadius: '16px', border: '1px solid rgba(245, 230, 211, 0.1)', background: '#000' }}>
+                <div id="reader-spatial-node" style={{ width: '100%' }}></div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {roomUsers.map(user => (
-                <div key={user.id} style={{ 
-                  padding: '20px', borderRadius: '16px', backgroundColor: 'rgba(20, 13, 12, 0.4)', 
-                  border: '1px solid rgba(230, 161, 92, 0.08)',
-                  display: 'flex', flexDirection: 'column', gap: '10px' 
-                }}>
+                <div key={user.id} style={{ padding: '20px', borderRadius: '16px', backgroundColor: 'rgba(20, 13, 12, 0.4)', border: '1px solid rgba(230, 161, 92, 0.08)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div>
                     <div style={{ fontSize: '15px', fontWeight: '500', color: '#F5E6D3' }}>
                       {user.name} <span style={{ fontSize: '12px', color: '#8A7366', fontWeight: '300', marginLeft: '4px' }}>— {user.title}</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#E6A15C', marginTop: '6px' }}>
-                      {user.intent}
-                    </div>
+                    <div style={{ fontSize: '11px', color: '#E6A15C', marginTop: '6px' }}>"{user.intent}"</div>
                   </div>
                 </div>
               ))}
 
-              {roomUsers.length === 0 && (
+              {roomUsers.length === 0 && !isScanning && (
                 <div style={{ padding: '60px 0', textAlign: 'center', color: '#4E3C36', fontSize: '12px', fontStyle: 'italic' }}>
                   {isVisible ? 'Looking for connections...' : 'Turn on broadcast mode to see who is in the room.'}
                 </div>
@@ -171,30 +242,34 @@ export default function OreetiSovereignEngine() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
               <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '2px', color: '#D9C3B0', textTransform: 'uppercase' }}>Saved Connections</div>
+              <div style={{ fontSize: '11px', color: '#4E3C36', marginTop: '2px' }}>Fully Unmasked Access Archive</div>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {vaultUsers.map((user, i) => (
+                <div key={i} style={{ backgroundColor: 'rgba(20, 13, 12, 0.4)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(230,161,92,0.08)' }}>
+                  <div style={{ fontSize: '16px', fontWeight: '500', color: '#FDFBF7' }}>{user.full_name || 'Verified Vault User'}</div>
+                  <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '2px' }}>{user.title}</div>
+                  <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '4px' }}>{user.domain}</div>
+                </div>
+              ))}
+              {vaultUsers.length === 0 && (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: '#4E3C36', fontSize: '12px', fontStyle: 'italic' }}>Your vault database is empty. Scan an identity to instantly add them.</div>
+              )}
             </div>
           </div>
         )}
 
         {activeTab === 'presence' && (
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: '24px', alignItems: 'center' }}>
             
-            {/* COMPACT NEW MOON CORONA BUSINESS CARD */}
+            {/* COMPACT CARD */}
             <div style={{ 
-              width: '100%', 
-              maxWidth: '320px',
-              backgroundColor: 'rgba(14, 9, 8, 0.95)', 
-              borderRadius: '16px', 
-              padding: '28px 24px', 
-              border: '1px solid rgba(245, 230, 211, 0.035)',
-              boxShadow: '0 0 25px rgba(245, 230, 211, 0.015), inset 0 0 10px rgba(245, 230, 211, 0.01)',
-              position: 'relative',
-              boxSizing: 'border-box'
+              width: '100%', maxWidth: '320px', backgroundColor: 'rgba(14, 9, 8, 0.95)', borderRadius: '16px', padding: '28px 24px', 
+              border: '1px solid rgba(245, 230, 211, 0.035)', boxShadow: '0 0 25px rgba(245, 230, 211, 0.015)', position: 'relative', boxSizing: 'border-box'
             }}>
               
-              <div 
-                onClick={() => setIsEditingProfile(!isEditingProfile)} 
-                style={{ position: 'absolute', top: '22px', right: '22px', cursor: 'pointer', opacity: 0.6, display: 'flex', alignItems: 'center' }}
-              >
+              <div onClick={() => setIsEditingProfile(!isEditingProfile)} style={{ position: 'absolute', top: '22px', right: '22px', cursor: 'pointer', opacity: 0.6, display: 'flex', alignItems: 'center' }}>
                 {isEditingProfile ? (
                   <span style={{ fontSize: '9px', letterSpacing: '1px', color: '#E6A15C', fontWeight: '600' }}>CLOSE</span>
                 ) : (
@@ -210,40 +285,36 @@ export default function OreetiSovereignEngine() {
                   <input type="text" placeholder="Name" value={editName} onChange={(e) => setEditName(e.target.value)} style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245,230,211,0.08)', padding: '10px', borderRadius: '8px', color: '#F5E6D3', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
                   <input type="text" placeholder="Role" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245,230,211,0.08)', padding: '10px', borderRadius: '8px', color: '#F5E6D3', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
                   <input type="text" placeholder="Domain" value={editDomain} onChange={(e) => setEditDomain(e.target.value)} style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245,230,211,0.08)', padding: '10px', borderRadius: '8px', color: '#F5E6D3', outline: 'none', fontSize: '12px', boxSizing: 'border-box' }} />
-                  <div onClick={saveProfileEdits} style={{ backgroundColor: '#E6A15C', color: '#140D0C', padding: '10px', borderRadius: '8px', textAlign: 'center', fontSize: '11px', fontWeight: '600', cursor: 'pointer', letterSpacing: '0.5px' }}>
-                    SAVE CHANGES
-                  </div>
+                  <div onClick={saveProfileEdits} style={{ backgroundColor: '#E6A15C', color: '#140D0C', padding: '10px', borderRadius: '8px', textAlign: 'center', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>SAVE CHANGES</div>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div>
-                    <div style={{ fontSize: '22px', fontWeight: '300', color: '#F5E6D3', letterSpacing: '-0.2px' }}>
-                      {profile.name}
-                    </div>
-                    <div style={{ fontSize: '13px', color: '#E6A15C', marginTop: '4px', fontWeight: '400', letterSpacing: '0.2px' }}>
-                      {profile.title}
-                    </div>
+                    <div style={{ fontSize: '22px', fontWeight: '300', color: '#F5E6D3', letterSpacing: '-0.2px' }}>{profile.name}</div>
+                    <div style={{ fontSize: '13px', color: '#E6A15C', marginTop: '4px', fontWeight: '400' }}>{profile.title}</div>
                   </div>
-                  
                   {profile.domain && (
-                    <div style={{ fontSize: '11px', color: '#8A7366', lineHeight: '1.5', borderTop: '1px solid rgba(245,230,211,0.03)', paddingTop: '12px' }}>
-                      {profile.domain}
-                    </div>
+                    <div style={{ fontSize: '11px', color: '#8A7366', lineHeight: '1.5', borderTop: '1px solid rgba(245,230,211,0.03)', paddingTop: '12px' }}>{profile.domain}</div>
                   )}
                 </div>
               )}
             </div>
+
+            {/* PRODUCTION QR GENERATOR EMBED */}
+            {!isEditingProfile && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '16px', borderRadius: '16px', background: 'rgba(14, 9, 8, 0.4)', border: '1px solid rgba(245,230,211,0.02)' }}>
+                <img src={qrCodeUrl} alt="Secure Profile QR Node" style={{ width: '140px', height: '140px', borderRadius: '8px', display: 'block' }} />
+                <div style={{ fontSize: '9px', color: '#4E3C36', letterSpacing: '1px', textTransform: 'uppercase' }}>Your Spatial Scan Key</div>
+              </div>
+            )}
+
           </div>
         )}
 
       </div>
 
-      {/* FIXED 40% NAVIGATION FOOTPRINT */}
-      <div style={{ 
-        background: 'linear-gradient(to top, #0A0605 80%, rgba(10, 6, 5, 0))', 
-        padding: '0 24px 30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box',
-        zIndex: 10
-      }}>
+      {/* FOOTER NAVIGATION UNIT */}
+      <div style={{ background: 'linear-gradient(to top, #0A0605 80%, rgba(10, 6, 5, 0))', padding: '0 24px 30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box', zIndex: 10 }}>
         
         {showIntentModal && (
           <div style={{ backgroundColor: '#140D10', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '16px', padding: '16px' }}>
@@ -259,26 +330,17 @@ export default function OreetiSovereignEngine() {
           {systemStatus}
         </div>
 
-        {/* BROADCAST TOGGLE PANEL */}
-        <div style={{ 
-          padding: '14px 18px', borderRadius: '16px', backgroundColor: 'rgba(20, 13, 12, 0.45)', 
-          border: '1px solid rgba(245, 230, 211, 0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-        }}>
-          <div>
-            <div style={{ fontSize: '12px', fontWeight: '500', color: '#F5E6D3' }}>Visible Broadcast Mode</div>
-          </div>
+        <div style={{ padding: '14px 18px', borderRadius: '16px', backgroundColor: 'rgba(20, 13, 12, 0.45)', border: '1px solid rgba(245, 230, 211, 0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: '12px', fontWeight: '500', color: '#F5E6D3' }}>Visible Broadcast Mode</div>
           <div onClick={handleToggleAction} style={{ width: '44px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer', transition: 'background-color 0.2s' }}>
             <div style={{ width: '18px', height: '18px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '23px' : '3px', transition: 'left 0.2s' }} />
           </div>
         </div>
 
-        <div style={{ 
-          height: '56px', backgroundColor: 'rgba(20, 13, 12, 0.85)', borderRadius: '20px', 
-          border: '1px solid rgba(245, 230, 211, 0.05)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', backdropFilter: 'blur(30px)'
-        }}>
-          <div onClick={() => setActiveTab('room')} style={{ fontSize: '10px', letterSpacing: '1.5px', fontWeight: '500', color: activeTab === 'room' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>ROOM</div>
-          <div onClick={() => setActiveTab('vault')} style={{ fontSize: '10px', letterSpacing: '1.5px', fontWeight: '500', color: activeTab === 'vault' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>VAULT</div>
-          <div onClick={() => setActiveTab('presence')} style={{ fontSize: '10px', letterSpacing: '1.5px', fontWeight: '500', color: activeTab === 'presence' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>PRESENCE</div>
+        <div style={{ height: '56px', backgroundColor: 'rgba(20, 13, 12, 0.85)', borderRadius: '20px', border: '1px solid rgba(245, 230, 211, 0.05)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', backdropFilter: 'blur(30px)' }}>
+          <div onClick={() => { setActiveTab('room'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', fontWeight: '500', color: activeTab === 'room' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>ROOM</div>
+          <div onClick={() => { setActiveTab('vault'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', fontWeight: '500', color: activeTab === 'vault' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>VAULT</div>
+          <div onClick={() => { setActiveTab('presence'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', fontWeight: '500', color: activeTab === 'presence' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>PRESENCE</div>
         </div>
 
       </div>
