@@ -35,6 +35,10 @@ export default function OreetiAmbientEngine() {
   const [roomUsers, setRoomUsers] = useState<Networker[]>([]);
   const [vaultUsers, setVaultUsers] = useState<any[]>([]);
   const [incomingHandshakes, setIncomingHandshakes] = useState<any[]>([]);
+
+  // Workflow Blueprint States
+  const [scannedProfile, setScannedProfile] = useState<Networker | null>(null);
+  const [establishedHandshake, setEstablishedHandshake] = useState<{ partnerName: string; station: string } | null>(null);
   
   const [userId, setUserId] = useState<string>('');
   const [dynamicQrToken, setDynamicQrToken] = useState('');
@@ -63,29 +67,17 @@ export default function OreetiAmbientEngine() {
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(dynamicQrToken)}&color=e6a15c&bgcolor=0e0908`;
 
-  useEffect(() => {
-    if (!isVisible || !userId) return;
-    const heartbeat = setInterval(async () => {
-      await supabase
-        .from('active_presence_nodes')
-        .update({ last_seen: new Date().toISOString() })
-        .eq('id', userId);
-    }, 5000);
-    return () => clearInterval(heartbeat);
-  }, [isVisible, userId]);
-
   const fetchActiveNodes = async () => {
     if (!userId) return;
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    
     const { data } = await supabase
       .from('active_presence_nodes')
       .select('id, name, title, domain, intent, current_station')
       .gt('last_seen', oneHourAgo)
       .not('id', 'eq', userId);
 
-    if (data) {
-      setRoomUsers(data as Networker[]);
-    }
+    if (data) setRoomUsers(data as Networker[]);
   };
 
   useEffect(() => {
@@ -100,31 +92,53 @@ export default function OreetiAmbientEngine() {
 
   const syncDatabaseFeeds = async () => {
     if (!userId) return;
+    
+    // Vault Feed
     const { data: vaultData } = await supabase
       .from('vault_connections')
       .select('connected_user_id, name, title, domain, connection_method')
       .eq('user_id', userId);
-
     if (vaultData) setVaultUsers(vaultData);
 
+    // Rule 1: Clean, strict 3-minute sliding visibility cutoff windows for incoming handshakes
     const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
     const { data: discoveryRequests } = await supabase
       .from('vault_connections')
-      .select('user_id, name, title')
+      .select('user_id, name, title, current_station')
       .eq('connected_user_id', userId)
       .eq('connection_method', 'discovery')
       .eq('handshake_accepted', false)
       .gt('created_at', threeMinutesAgo);
-
     if (discoveryRequests) setIncomingHandshakes(discoveryRequests);
+
+    // Track state confirmation to fire ambient meetup location card trigger
+    const { data: acceptedCheck } = await supabase
+      .from('vault_connections')
+      .select('connected_user_id, current_station, handshake_accepted, name')
+      .eq('user_id', userId)
+      .eq('handshake_accepted', true)
+      .gt('created_at', threeMinutesAgo)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (acceptedCheck && acceptedCheck.length > 0) {
+      const partnerId = acceptedCheck[0].connected_user_id;
+      const targetUser = roomUsers.find(u => u.id === partnerId);
+      if (!establishedHandshake) {
+        setEstablishedHandshake({
+          partnerName: acceptedCheck[0].name || (targetUser ? targetUser.name : 'Network Member'),
+          station: acceptedCheck[0].current_station || (targetUser ? targetUser.current_station : 'Main Hall')
+        });
+      }
+    }
   };
 
   useEffect(() => {
     if (!userId) return;
     syncDatabaseFeeds();
-    const intervalSync = setInterval(syncDatabaseFeeds, 6000);
+    const intervalSync = setInterval(syncDatabaseFeeds, 4000);
     return () => clearInterval(intervalSync);
-  }, [activeTab, userId]);
+  }, [activeTab, userId, roomUsers]);
 
   const startQrScanner = async () => {
     setIsScanning(true);
@@ -140,31 +154,27 @@ export default function OreetiAmbientEngine() {
             if (parts.length >= 1) {
               const scannedId = parts[0];
               
-              // Force clear scanner immediately on discovery read to unlock camera hardware
               if (html5QrCodeRef.current) {
                 await html5QrCodeRef.current.stop().catch(()=>{});
                 html5QrCodeRef.current = null;
               }
               setIsScanning(false);
 
-              await supabase.from('vault_connections').insert({ 
-                user_id: userId, 
-                connected_user_id: scannedId, 
-                connection_method: 'discovery', 
-                handshake_accepted: false, 
-                created_at: new Date().toISOString() 
-              });
-              
-              setSystemAlert("Handshake code sent!");
-              setTimeout(() => setSystemAlert(null), 3000);
-              syncDatabaseFeeds();
+              const { data } = await supabase
+                .from('active_presence_nodes')
+                .select('id, name, title, domain, intent, current_station')
+                .eq('id', scannedId)
+                .single();
+
+              if (data) {
+                setScannedProfile(data as Networker);
+                setActiveTab('vault'); // Drops scan target immediately inside Vault tab state
+              }
             }
           },
           () => {}
         );
       } catch (err) {
-        setSystemAlert("Camera access failed.");
-        setTimeout(() => setSystemAlert(null), 3000);
         setIsScanning(false);
       }
     }, 150);
@@ -178,11 +188,64 @@ export default function OreetiAmbientEngine() {
     setIsScanning(false);
   };
 
-  const acceptDiscoveryHandshake = async (requesterId: string) => {
-    await supabase.from('vault_connections').update({ handshake_accepted: true }).eq('user_id', requesterId).eq('connected_user_id', userId);
-    await supabase.from('vault_connections').insert({ user_id: userId, connected_user_id: requesterId, connection_method: 'discovery', handshake_accepted: true });
-    setSystemAlert("Connection secured.");
+  const triggerDiscoveryHandshake = async (targetUser: Networker) => {
+    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    
+    // Rule 2: Strict Spam Guard enforcement checks
+    const { count, error: countError } = await supabase
+      .from('vault_connections')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('connection_method', 'discovery')
+      .eq('handshake_accepted', false)
+      .gt('created_at', threeMinutesAgo);
+
+    if (count && count >= 3) {
+      setSystemAlert("Spam Guard: Limit of 3 active pending handshakes reached.");
+      setTimeout(() => setSystemAlert(null), 4000);
+      return;
+    }
+
+    await supabase.from('vault_connections').insert({ 
+      user_id: userId, 
+      connected_user_id: targetUser.id, 
+      name: fullName || 'Network Peer',
+      title: role || 'Member',
+      domain: domain || '',
+      connection_method: 'discovery', 
+      handshake_accepted: false,
+      current_station: selectedStation || 'Main Lounge',
+      created_at: new Date().toISOString() 
+    });
+    
+    setSystemAlert(`Handshake ping sent to ${targetUser.name.split(' ')[0]}`);
     setTimeout(() => setSystemAlert(null), 3000);
+    syncDatabaseFeeds();
+  };
+
+  const acceptDiscoveryHandshake = async (request: any) => {
+    await supabase.from('vault_connections')
+      .update({ handshake_accepted: true })
+      .eq('user_id', request.user_id)
+      .eq('connected_user_id', userId);
+
+    await supabase.from('vault_connections').insert({ 
+      user_id: userId, 
+      connected_user_id: request.user_id, 
+      name: request.name,
+      title: request.title || 'Network Member',
+      domain: '',
+      connection_method: 'discovery', 
+      handshake_accepted: true,
+      current_station: selectedStation || 'Main Lounge',
+      created_at: new Date().toISOString()
+    });
+
+    setEstablishedHandshake({
+      partnerName: request.name,
+      station: request.current_station || selectedStation || 'Assigned Landmark'
+    });
+
     syncDatabaseFeeds();
   };
 
@@ -193,7 +256,7 @@ export default function OreetiAmbientEngine() {
 
   const confirmVisibility = async () => {
     if (!fullName.trim() || !role.trim() || !domain.trim() || !currentIntent.trim() || !selectedStation.trim()) {
-      setSystemAlert("Complete your digital card fields first.");
+      setSystemAlert("Complete fields prior to emitting.");
       setTimeout(() => setSystemAlert(null), 3000);
       return;
     }
@@ -219,11 +282,20 @@ export default function OreetiAmbientEngine() {
   return (
     <div style={{ margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#0A0605', color: '#FDFBF7', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box' }}>
       
-      {/* Alert Top Frame */}
-      <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999 }}>
+      {/* Absolute Ambient Banner Layer */}
+      <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {systemAlert && (
-          <div style={{ background: '#1C1210', border: '1px solid #E6A15C', borderRadius: '12px', padding: '14px 16px', color: '#F5E6D3', fontSize: '12px', textAlign: 'center', letterSpacing: '0.5px' }}>
+          <div style={{ background: '#1C1210', border: '1px solid #E6A15C', borderRadius: '12px', padding: '14px 16px', color: '#F5E6D3', fontSize: '11px', textAlign: 'center', letterSpacing: '0.5px' }}>
             {systemAlert}
+          </div>
+        )}
+
+        {establishedHandshake && (
+          <div style={{ background: '#110D0C', border: '2px solid #E6A15C', borderRadius: '24px', padding: '28px', color: '#F5E6D3', boxShadow: '0 25px 60px rgba(0,0,0,0.85)', textAlign: 'center' }}>
+            <div style={{ fontSize: '10px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600', marginBottom: '8px' }}>HANDSHAKE ESTABLISHED</div>
+            <div style={{ fontSize: '18px', fontWeight: '400', marginBottom: '14px', color: '#FDFBF7' }}>Connected with {establishedHandshake.partnerName}</div>
+            <div style={{ fontSize: '12px', color: '#8A7366', marginBottom: '20px' }}>Location Target: <span style={{ color: '#F5E6D3', fontWeight: '500' }}>{establishedHandshake.station}</span></div>
+            <div onClick={() => setEstablishedHandshake(null)} style={{ padding: '12px', background: 'rgba(230,161,92,0.1)', border: '1px solid rgba(230,161,92,0.3)', borderRadius: '10px', fontSize: '11px', fontWeight: '600', color: '#E6A15C', cursor: 'pointer', letterSpacing: '1px' }}>DISMISS NOTIFICATION</div>
           </div>
         )}
       </div>
@@ -250,13 +322,20 @@ export default function OreetiAmbientEngine() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {roomUsers.map(user => (
-                <div key={user.id} style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#110D0C', border: '1px solid rgba(230,161,92,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ flex: 1, paddingRight: '16px' }}>
-                    <div style={{ fontSize: '16px', fontWeight: '400', color: '#F5E6D3' }}>{user.name}</div>
-                    <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '4px' }}>{user.title} <span style={{ color: '#8A7366' }}>@ {user.domain}</span></div>
-                    {user.current_station && (
-                      <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '8px' }}>{user.current_station}</div>
-                    )}
+                <div key={user.id} style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#110D0C', border: '1px solid rgba(230,161,92,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box' }}>
+                  <div style={{ flex: 1, paddingRight: '12px' }}>
+                    {/* Gated Public Profile Data View */}
+                    <div style={{ fontSize: '17px', fontWeight: '400', color: '#F5E6D3' }}>{user.name.split(' ')[0]}</div>
+                    <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '4px', lineHeight: '1.4' }}>{user.title}</div>
+                    <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '10px', fontStyle: 'italic', lineHeight: '1.4' }}>"{user.intent}"</div>
+                  </div>
+                  
+                  {/* Connect Trigger - Clean Anchor Positioned Far Right Inside Card Frame */}
+                  <div 
+                    onClick={() => triggerDiscoveryHandshake(user)} 
+                    style={{ padding: '12px 18px', backgroundColor: 'rgba(230,161,92,0.06)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', borderRadius: '10px', fontSize: '10px', fontWeight: '600', cursor: 'pointer', letterSpacing: '1px', whiteSpace: 'nowrap', height: 'fit-content' }}
+                  >
+                    CONNECT
                   </div>
                 </div>
               ))}
@@ -266,17 +345,37 @@ export default function OreetiAmbientEngine() {
 
         {activeTab === 'vault' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div>
-              <div style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '2px', color: '#E6A15C', marginBottom: '16px' }}>VAULT CONNECTIONS</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {vaultUsers.map((user, i) => (
-                  <div key={i} style={{ backgroundColor: '#110D0C', borderRadius: '20px', padding: '24px', border: '1px solid rgba(230,161,92,0.02)' }}>
-                    <div style={{ fontSize: '16px', fontWeight: '400', color: '#FDFBF7' }}>{user.name}</div>
-                    <div style={{ fontSize: '12px', color: '#D9C3B0', marginTop: '4px' }}>{user.title} • {user.domain}</div>
-                  </div>
-                ))}
+            {scannedProfile ? (
+              <div style={{ backgroundColor: '#110D0C', borderRadius: '24px', padding: '32px', border: '1px solid #E6A15C', display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
+                <div onClick={() => setScannedProfile(null)} style={{ position: 'absolute', top: '24px', right: '24px', color: '#8A7366', fontSize: '10px', cursor: 'pointer', letterSpacing: '1px' }}>EXIT CARD</div>
+                <div style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600' }}>TIER-1 GREETING CARD</div>
+                <div style={{ fontSize: '24px', color: '#FDFBF7', fontWeight: '300' }}>{scannedProfile.name}</div>
+                <div style={{ fontSize: '14px', color: '#E6A15C' }}>{scannedProfile.title}</div>
+                <div style={{ fontSize: '13px', color: '#D9C3B0', opacity: 0.9, marginTop: '4px' }}><strong>Domain:</strong> {scannedProfile.domain}</div>
+                
+                <div style={{ borderTop: '1px solid rgba(230,161,92,0.1)', marginTop: '12px', paddingTop: '16px' }}>
+                  <div style={{ fontSize: '11px', color: '#8A7366', marginBottom: '14px', lineHeight: '1.5' }}>Personal communication lines are locked. Secure connection via Tier-2 authorization.</div>
+                  <button 
+                    onClick={() => { triggerDiscoveryHandshake(scannedProfile); setScannedProfile(null); }}
+                    style={{ width: '100%', padding: '14px', background: '#E6A15C', color: '#0A0605', border: 'none', borderRadius: '12px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', letterSpacing: '1px' }}
+                  >
+                    REQUEST TIER-2 ACCESS
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div>
+                <div style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '2px', color: '#E6A15C', marginBottom: '16px' }}>SECURED VAULT CONNECTIONS ({vaultUsers.length})</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {vaultUsers.map((user, i) => (
+                    <div key={i} style={{ backgroundColor: '#110D0C', borderRadius: '20px', padding: '24px', border: '1px solid rgba(230,161,92,0.02)' }}>
+                      <div style={{ fontSize: '16px', fontWeight: '400', color: '#FDFBF7' }}>{user.name}</div>
+                      <div style={{ fontSize: '12px', color: '#D9C3B0', marginTop: '4px' }}>{user.title} {user.domain && `• ${user.domain}`}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -284,9 +383,9 @@ export default function OreetiAmbientEngine() {
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: '32px', alignItems: 'center' }}>
             {incomingHandshakes.map((req, idx) => (
               <div key={idx} style={{ width: '100%', maxWidth: '350px', backgroundColor: '#140D0C', border: '1px solid rgba(230,161,92,0.2)', borderRadius: '20px', padding: '20px', boxSizing: 'border-box' }}>
-                <div style={{ fontSize: '13px', color: '#F5E6D3', marginBottom: '14px' }}>Incoming handshake from <strong>{req.name}</strong>?</div>
+                <div style={{ fontSize: '13px', color: '#F5E6D3', marginBottom: '14px' }}>Incoming handshake from <strong>{req.name.split(' ')[0]}</strong>?</div>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => acceptDiscoveryHandshake(req.user_id)} style={{ flex: 1, padding: '10px', background: '#E6A15C', color: '#0A0605', fontWeight: '600', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '11px' }}>ACCEPT</button>
+                  <button onClick={() => acceptDiscoveryHandshake(req)} style={{ flex: 1, padding: '10px', background: '#E6A15C', color: '#0A0605', fontWeight: '600', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '11px' }}>ACCEPT</button>
                   <button onClick={() => declineDiscoveryHandshake(req.user_id)} style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.02)', color: '#8A7366', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '11px' }}>BYPASS</button>
                 </div>
               </div>
@@ -347,7 +446,6 @@ export default function OreetiAmbientEngine() {
 
       </div>
 
-      {/* Footer Switchboards */}
       <div style={{ background: 'linear-gradient(to top, #0A0605 85%, rgba(10, 6, 5, 0))', padding: '0 24px 32px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box' }}>
         
         {showIntentModal && (
