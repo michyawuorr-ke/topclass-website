@@ -20,9 +20,14 @@ interface Networker {
 export default function OreetiAmbientEngine() {
   const [activeTab, setActiveTab] = useState<'room' | 'vault' | 'presence'>('presence');
   const [isVisible, setIsVisible] = useState(false);
+  
+  // Dynamic user profile states initialized completely blank
+  const [fullName, setFullName] = useState('');
+  const [role, setRole] = useState('');
+  const [domain, setDomain] = useState('');
+  
   const [currentIntent, setCurrentUrlIntent] = useState('');
-  const [selectedStation, setSelectedStation] = useState(''); // Changed to custom text input state
-  const [sessionAnchor] = useState('Nairobi Garage');
+  const [selectedStation, setSelectedStation] = useState('');
   const [showIntentModal, setShowIntentModal] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   
@@ -35,24 +40,20 @@ export default function OreetiAmbientEngine() {
   const [incomingHandshakes, setIncomingHandshakes] = useState<any[]>([]);
   const [pendingSentCount, setPendingSentCount] = useState(0);
   
+  const [userId] = useState(() => `node-${Math.random().toString(36).substring(2, 15)}`);
   const [dynamicQrToken, setDynamicQrToken] = useState('');
-  const [profile] = useState({
-    id: 'michy-production-node-99', 
-    name: 'Michy',
-    title: 'Principal Architecture Lead',
-    domain: 'Digital Infrastructure & Spatial Design',
-  });
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
+    if (!fullName) return;
     const generateSecureToken = () => {
-      setDynamicQrToken(`${profile.id}||${Date.now()}||${Math.random().toString(36).substring(2, 7)}`);
+      setDynamicQrToken(`${userId}||${Date.now()}||${Math.random().toString(36).substring(2, 7)}`);
     };
     generateSecureToken();
     const tokenRotationInterval = setInterval(generateSecureToken, 45000);
     return () => clearInterval(tokenRotationInterval);
-  }, [profile.id]);
+  }, [userId, fullName]);
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(dynamicQrToken)}&color=e6a15c&bgcolor=0e0908`;
 
@@ -62,12 +63,12 @@ export default function OreetiAmbientEngine() {
       await supabase
         .from('active_presence_nodes')
         .update({ last_seen: new Date().toISOString() })
-        .eq('id', profile.id);
+        .eq('id', userId);
     }, 15000);
     return () => clearInterval(heartbeat);
-  }, [isVisible, profile.id]);
+  }, [isVisible, userId]);
 
-  // Real-time Room Syncing Engine
+  // Real-time unfiltered room sync engine
   useEffect(() => {
     if (!isVisible) {
       setRoomUsers([]);
@@ -79,9 +80,8 @@ export default function OreetiAmbientEngine() {
       const { data } = await supabase
         .from('active_presence_nodes')
         .select('id, name, title, domain, intent')
-        .eq('room_anchor', sessionAnchor)
         .gt('last_seen', halfHourAgo)
-        .not('id', 'eq', profile.id);
+        .not('id', 'eq', userId); // Unfiltered room matching logic
 
       if (data) setRoomUsers(data as Networker[]);
     };
@@ -98,13 +98,13 @@ export default function OreetiAmbientEngine() {
     return () => {
       supabase.removeChannel(realTimeChannel);
     };
-  }, [isVisible, sessionAnchor, profile.id]);
+  }, [isVisible, userId]);
 
   const syncDatabaseFeeds = async () => {
     const { data: vaultData } = await supabase
       .from('vault_connections')
       .select('connected_user_id, name, title, domain, connection_method')
-      .eq('user_id', profile.id);
+      .eq('user_id', userId);
 
     if (vaultData) setVaultUsers(vaultData);
 
@@ -112,7 +112,7 @@ export default function OreetiAmbientEngine() {
     const { data: discoveryRequests } = await supabase
       .from('vault_connections')
       .select('user_id, name, title')
-      .eq('connected_user_id', profile.id)
+      .eq('connected_user_id', userId)
       .eq('connection_method', 'discovery')
       .eq('handshake_accepted', false)
       .gt('created_at', threeMinutesAgo)
@@ -124,7 +124,7 @@ export default function OreetiAmbientEngine() {
     const { count } = await supabase
       .from('vault_connections')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', profile.id)
+      .eq('user_id', userId)
       .eq('handshake_accepted', false)
       .gt('created_at', threeMinutesAgo);
     
@@ -138,7 +138,7 @@ export default function OreetiAmbientEngine() {
     const handshakeListener = supabase
       .channel('handshake_alerts')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vault_connections' }, async (payload: any) => {
-        if (payload.new.user_id === profile.id && payload.new.connection_method === 'discovery' && payload.new.handshake_accepted === true) {
+        if (payload.new.user_id === userId && payload.new.connection_method === 'discovery' && payload.new.handshake_accepted === true) {
           const { data: targetNode } = await supabase
             .from('active_presence_nodes')
             .select('current_station, name')
@@ -154,7 +154,7 @@ export default function OreetiAmbientEngine() {
       clearInterval(intervalSync);
       supabase.removeChannel(handshakeListener);
     };
-  }, [activeTab, profile.id]);
+  }, [activeTab, userId]);
 
   // Scanner Engine Hooks
   useEffect(() => {
@@ -167,7 +167,7 @@ export default function OreetiAmbientEngine() {
         async (decodedText) => {
           const cleanId = decodedText.split('||')[0];
           if (html5QrCodeRef.current) { await html5QrCodeRef.current.stop().catch(() => {}); html5QrCodeRef.current = null; setIsScanning(false); }
-          await supabase.from('vault_connections').insert({ user_id: profile.id, connected_user_id: cleanId, connection_method: 'scan', created_at: new Date().toISOString() });
+          await supabase.from('vault_connections').insert({ user_id: userId, connected_user_id: cleanId, connection_method: 'scan', created_at: new Date().toISOString() });
           setActiveTab('vault');
           syncDatabaseFeeds();
         },
@@ -183,13 +183,13 @@ export default function OreetiAmbientEngine() {
       setTimeout(() => setSystemAlert(null), 4000);
       return;
     }
-    await supabase.from('vault_connections').insert({ user_id: profile.id, connected_user_id: targetUserId, connection_method: 'discovery', handshake_accepted: false, created_at: new Date().toISOString() });
+    await supabase.from('vault_connections').insert({ user_id: userId, connected_user_id: targetUserId, connection_method: 'discovery', handshake_accepted: false, created_at: new Date().toISOString() });
     syncDatabaseFeeds();
   };
 
   const acceptDiscoveryHandshake = async (requesterId: string) => {
-    await supabase.from('vault_connections').update({ handshake_accepted: true }).eq('user_id', requesterId).eq('connected_user_id', profile.id);
-    await supabase.from('vault_connections').insert({ user_id: profile.id, connected_user_id: requesterId, connection_method: 'discovery', handshake_accepted: true });
+    await supabase.from('vault_connections').update({ handshake_accepted: true }).eq('user_id', requesterId).eq('connected_user_id', userId);
+    await supabase.from('vault_connections').insert({ user_id: userId, connected_user_id: requesterId, connection_method: 'discovery', handshake_accepted: true });
 
     const { data: theirNode } = await supabase.from('active_presence_nodes').select('current_station, name').eq('id', requesterId).single();
 
@@ -198,23 +198,27 @@ export default function OreetiAmbientEngine() {
   };
 
   const declineDiscoveryHandshake = async (requesterId: string) => {
-    await supabase.from('vault_connections').delete().eq('user_id', requesterId).eq('connected_user_id', profile.id);
+    await supabase.from('vault_connections').delete().eq('user_id', requesterId).eq('connected_user_id', userId);
     syncDatabaseFeeds();
   };
 
   const confirmVisibility = async () => {
-    if (!currentIntent.trim() || !selectedStation.trim()) return;
+    if (!fullName.trim() || !role.trim() || !domain.trim() || !currentIntent.trim() || !selectedStation.trim()) {
+      setSystemAlert("Complete all presence and focus directory details first.");
+      setTimeout(() => setSystemAlert(null), 4000);
+      return;
+    }
     setShowIntentModal(false);
     setIsVisible(true);
 
     await supabase.from('active_presence_nodes').upsert({
-      id: profile.id,
-      name: profile.name,
-      title: profile.title,
-      domain: profile.domain,
+      id: userId,
+      name: fullName,
+      title: role,
+      domain: domain,
       intent: currentIntent,
       current_station: selectedStation,
-      room_anchor: sessionAnchor,
+      room_anchor: 'global_unfiltered_presence',
       last_seen: new Date().toISOString()
     });
   };
@@ -222,7 +226,7 @@ export default function OreetiAmbientEngine() {
   return (
     <div style={{ margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#0A0605', color: '#FDFBF7', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box' }}>
       
-      {/* Ambient Notifications Base */}
+      {/* Ambient Toast Stack */}
       <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {ambientMeetingGuide && (
           <div onClick={() => setAmbientMeetingGuide(null)} style={{ background: '#140D0C', border: '1px solid #E6A15C', borderRadius: '12px', padding: '16px', color: '#F5E6D3', fontSize: '13px', lineHeight: '1.4', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', cursor: 'pointer' }}>
@@ -244,8 +248,7 @@ export default function OreetiAmbientEngine() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '2px', color: '#D9C3B0', textTransform: 'uppercase' }}>{sessionAnchor}</div>
-                <div style={{ fontSize: '11px', color: '#4E3C36', marginTop: '2px' }}>People Nearby • Queue ({pendingSentCount}/3)</div>
+                <div style={{ fontSize: '11px', color: '#4E3C36', fontWeight: '600' }}>People Nearby • Queue ({pendingSentCount}/3)</div>
               </div>
               <div onClick={async () => { if (isScanning && html5QrCodeRef.current) { await html5QrCodeRef.current.stop().catch(() => {}); html5QrCodeRef.current = null; } setIsScanning(!isScanning); }} style={{ fontSize: '10px', color: '#E6A15C', border: '1px solid rgba(230,161,92,0.2)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
                 {isScanning ? 'CLOSE' : 'SCAN CARD'}
@@ -302,10 +305,32 @@ export default function OreetiAmbientEngine() {
               </div>
             ))}
 
-            <div style={{ width: '100%', maxWidth: '320px', backgroundColor: 'rgba(14, 9, 8, 0.95)', borderRadius: '16px', padding: '28px 24px', border: '1px solid rgba(245, 230, 211, 0.035)', boxSizing: 'border-box' }}>
-              <div style={{ fontSize: '22px', fontWeight: '300', color: '#F5E6D3' }}>{profile.name}</div>
-              <div style={{ fontSize: '13px', color: '#E6A15C', marginTop: '4px' }}>{profile.title}</div>
-              <div style={{ fontSize: '11px', color: '#8A7366', lineHeight: '1.5', borderTop: '1px solid rgba(245, 230, 211, 0.03)', paddingTop: '12px', marginTop: '16px' }}>{profile.domain}</div>
+            {/* Empty inputs profile configuration panel */}
+            <div style={{ width: '100%', maxWidth: '320px', backgroundColor: 'rgba(14, 9, 8, 0.95)', borderRadius: '16px', padding: '24px', border: '1px solid rgba(245, 230, 211, 0.035)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <input 
+                type="text" 
+                disabled={isVisible}
+                placeholder="Full Name" 
+                value={fullName} 
+                onChange={(e) => setFullName(e.target.value)} 
+                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '12px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '14px' }} 
+              />
+              <input 
+                type="text" 
+                disabled={isVisible}
+                placeholder="Role (e.g. Lead Developer)" 
+                value={role} 
+                onChange={(e) => setRole(e.target.value)} 
+                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '12px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '14px' }} 
+              />
+              <input 
+                type="text" 
+                disabled={isVisible}
+                placeholder="Domain (e.g. Fine Arts, FinTech)" 
+                value={domain} 
+                onChange={(e) => setDomain(e.target.value)} 
+                style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '12px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '14px' }} 
+              />
             </div>
 
             {isVisible ? (
@@ -314,7 +339,7 @@ export default function OreetiAmbientEngine() {
                 <div style={{ fontSize: '8px', color: '#8A7366', letterSpacing: '1px', textTransform: 'uppercase' }}>Dynamic Security Token Active</div>
               </div>
             ) : (
-              <div style={{ padding: '20px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', fontStyle: 'italic', maxWidth: '260px' }}>Your secure scan card code is offline. Flip the broadcast switch below to activate your presence.</div>
+              <div style={{ padding: '10px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', fontStyle: 'italic', maxWidth: '260px' }}>Fill in directory cards then flip the broadcast switch below to step into the room.</div>
             )}
           </div>
         )}
@@ -327,7 +352,7 @@ export default function OreetiAmbientEngine() {
           <div style={{ backgroundColor: '#140D10', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <input 
               type="text" 
-              placeholder="Your Intent (e.g. Looking for UI Designer)" 
+              placeholder="Your Intent (e.g. Looking for Designer)" 
               value={currentIntent} 
               onChange={(e) => setCurrentUrlIntent(e.target.value)} 
               style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '12px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
@@ -353,7 +378,7 @@ export default function OreetiAmbientEngine() {
             <div style={{ fontSize: '12px', color: '#F5E6D3' }}>Visible Broadcast Mode</div>
             {isVisible && <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '2px' }}>Stationed at {selectedStation}</div>}
           </div>
-          <div onClick={() => { if (!isVisible) { setShowIntentModal(true); } else { setIsVisible(false); supabase.from('active_presence_nodes').delete().eq('id', profile.id); } }} style={{ width: '44px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
+          <div onClick={() => { if (!isVisible) { if (!fullName.trim() || !role.trim() || !domain.trim()) { setSystemAlert("Fill in presence card details first."); setTimeout(() => setSystemAlert(null), 3000); return; } setShowIntentModal(true); } else { setIsVisible(false); supabase.from('active_presence_nodes').delete().eq('id', userId); } }} style={{ width: '44px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
             <div style={{ width: '18px', height: '18px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '23px' : '3px', transition: 'left 0.2s' }} />
           </div>
         </div>
