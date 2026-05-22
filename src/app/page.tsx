@@ -24,7 +24,7 @@ export default function OreetiAmbientEngine() {
   const [isVisible, setIsVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false); 
   const [showSecureInputs, setShowSecureInputs] = useState(false);
-  const [showTier2Options, setShowTier2Options] = useState(false); // Controls the Tier-2 configuration drawer
+  const [showTier2Options, setShowTier2Options] = useState(false);
   
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('');
@@ -111,7 +111,6 @@ export default function OreetiAmbientEngine() {
       .eq('user_id', userId);
     if (vaultData) setVaultUsers(vaultData);
 
-    // Live poller checking for unhandled incoming handshakes
     const { data: discoveryRequests } = await supabase
       .from('vault_connections')
       .select('*')
@@ -141,19 +140,6 @@ export default function OreetiAmbientEngine() {
   }, [activeTab, userId]);
 
   const triggerDiscoveryHandshake = async (targetUser: Networker) => {
-    const { data: existingCheck } = await supabase
-      .from('vault_connections')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('connected_user_id', targetUser.id);
-
-    if (existingCheck && existingCheck.length > 0) {
-      setSystemAlert("Connection state already exists for this node.");
-      setTimeout(() => setSystemAlert(null), 3000);
-      return;
-    }
-
-    // Optimistic UI update: instantly drop card from room array view to confirm actions immediately
     setRoomUsers(prev => prev.filter(u => u.id !== targetUser.id));
 
     await supabase.from('vault_connections').insert({ 
@@ -175,7 +161,6 @@ export default function OreetiAmbientEngine() {
   };
 
   const acceptDiscoveryHandshake = async (request: any) => {
-    // OPTIMISTIC UI: Instantly strip from incoming screen tracking queue to eliminate perception lag
     setIncomingHandshakes(prev => prev.filter(h => h.id !== request.id));
 
     await supabase.from('vault_connections')
@@ -201,9 +186,7 @@ export default function OreetiAmbientEngine() {
   };
 
   const declineDiscoveryHandshake = async (reqId: number) => {
-    // OPTIMISTIC UI: Clear card pipeline traces instantly
     setIncomingHandshakes(prev => prev.filter(h => h.id !== reqId));
-
     await supabase.from('vault_connections').delete().eq('id', reqId);
     setSystemAlert("Handshake bypassed.");
     setTimeout(() => setSystemAlert(null), 2000);
@@ -237,6 +220,7 @@ export default function OreetiAmbientEngine() {
                 .single();
 
               if (targetNode) {
+                // FORCE OVERRIDE: Uses direct upsert logic to forcefully override past connection states
                 await supabase.from('vault_connections').upsert({
                   user_id: userId,
                   connected_user_id: targetNode.id,
@@ -247,7 +231,7 @@ export default function OreetiAmbientEngine() {
                   linkedin: targetNode.linkedin,
                   handshake_accepted: true,
                   qr_scanned: true
-                }, { onConflict: 'user_id,connected_user_id' as any });
+                });
 
                 await supabase.from('vault_connections').upsert({
                   user_id: targetNode.id,
@@ -259,7 +243,7 @@ export default function OreetiAmbientEngine() {
                   linkedin: userLinkedin || '',
                   handshake_accepted: true,
                   qr_scanned: true
-                }, { onConflict: 'user_id,connected_user_id' as any });
+                });
 
                 setSystemAlert("Mutual Physical Connection Established.");
                 setTimeout(() => setSystemAlert(null), 3000);
@@ -413,10 +397,9 @@ export default function OreetiAmbientEngine() {
             {selectedVaultItem ? (
               <div style={{ backgroundColor: '#110D0C', borderRadius: '24px', padding: '32px', border: '1px solid #E6A15C', display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
                 
-                {/* FIXED: Explicitly functional reset action handler to completely drop detail overlay panel */}
                 <div 
                   onClick={() => { setSelectedVaultItem(null); setShowTier2Options(false); }} 
-                  style={{ position: 'absolute', top: '24px', right: '24px', color: '#E6A15C', fontSize: '10px', fontWeight: '600', letterSpacing: '1px', cursor: 'pointer', padding: '6px 10px', background: 'rgba(230,161,92,0.05)', borderRadius: '6px' }}
+                  style={{ position: 'absolute', top: '24px', right: '24px', color: '#E6A15C', fontSize: '10px', fontWeight: '600', letterSpacing: '1px', cursor: 'pointer', padding: '6px 10px', background: 'rgba(230,161,92,0.05)', borderRadius: '6px', zIndex: 50 }}
                 >
                   EXIT
                 </div>
@@ -437,7 +420,6 @@ export default function OreetiAmbientEngine() {
                     <div style={{ fontSize: '14px', color: '#E6A15C' }}>{selectedVaultItem.title}</div>
                     <div style={{ fontSize: '13px', color: '#D9C3B0' }}><strong>Domain:</strong> {selectedVaultItem.domain || 'Independent'}</div>
                     
-                    {/* FIXED: Dynamic content display block. Cleaned out non-functional placeholders */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
                       {selectedVaultItem.shared_phone && selectedVaultItem.phone && (
                         <div style={{ fontSize: '13px', color: '#F5E6D3', background: '#1C1210', padding: '12px', borderRadius: '8px' }}>📞 {selectedVaultItem.phone}</div>
@@ -447,7 +429,6 @@ export default function OreetiAmbientEngine() {
                       )}
                     </div>
 
-                    {/* FIXED: Tier-2 drawer implementation hidden completely behind an initial disclosure switch */}
                     <div style={{ borderTop: '1px solid rgba(230,161,92,0.1)', marginTop: '12px', paddingTop: '16px' }}>
                       {!showTier2Options ? (
                         <button 
