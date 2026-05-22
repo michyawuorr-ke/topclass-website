@@ -14,6 +14,10 @@ interface Networker {
   title: string;
   domain: string;
   intent: string;
+  phone?: string;
+  linkedin?: string;
+  tier_2_status?: 'locked' | 'pending' | 'approved' | 'declined';
+  shared_channels?: { phone: boolean; linkedin: boolean };
 }
 
 export default function OreetiSovereignEngine() {
@@ -26,14 +30,19 @@ export default function OreetiSovereignEngine() {
   const [isScanning, setIsScanning] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
+  // Room & Vault State Trackers
   const [roomUsers, setRoomUsers] = useState<Networker[]>([]);
   const [vaultUsers, setVaultUsers] = useState<Networker[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<any[]>([]);
   
+  // Local User Nodes
   const [profile, setProfile] = useState({
     id: 'michy-production-node-99', 
     name: 'Michy',
     title: 'Principal Architecture Lead',
-    domain: 'Digital Infrastructure & Spatial Design'
+    domain: 'Digital Infrastructure & Spatial Design',
+    phone: '+254 700 000000',
+    linkedin: 'linkedin.com/in/michy'
   });
 
   const [editName, setEditName] = useState(profile.name);
@@ -41,9 +50,9 @@ export default function OreetiSovereignEngine() {
   const [editDomain, setEditDomain] = useState(profile.domain);
 
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(profile.id)}&color=e6a15c&bgcolor=0e0908`;
 
+  // Real-time Room Syncing Engine
   useEffect(() => {
     if (!isVisible) {
       setRoomUsers([]);
@@ -74,18 +83,31 @@ export default function OreetiSovereignEngine() {
     };
   }, [isVisible, sessionAnchor, profile.id]);
 
-  useEffect(() => {
-    const fetchVaultConnections = async () => {
-      const { data, error } = await supabase
-        .from('vault_connections')
-        .select('connected_user_id, name, title, domain')
-        .eq('user_id', profile.id);
+  // Fetch Vault Data & incoming requests
+  const refreshVaultAndRequests = async () => {
+    // Fetch contacts in your Vault
+    const { data: vaultData } = await supabase
+      .from('vault_connections')
+      .select('connected_user_id, name, title, domain, tier_2_status, shared_channels, phone, linkedin')
+      .eq('user_id', profile.id);
 
-      if (!error && data) setVaultUsers(data as unknown as Networker[]);
-    };
-    fetchVaultConnections();
+    if (vaultData) setVaultUsers(vaultData as unknown as Networker[]);
+
+    // Fetch incoming Tier 2 authorization requests targeting you
+    const { data: requestData } = await supabase
+      .from('vault_connections')
+      .select('user_id, name, title, tier_2_status')
+      .eq('connected_user_id', profile.id)
+      .eq('tier_2_status', 'pending');
+
+    if (requestData) setIncomingRequests(requestData);
+  };
+
+  useEffect(() => {
+    refreshVaultAndRequests();
   }, [activeTab, profile.id]);
 
+  // Hardware Camera Interface Engine
   useEffect(() => {
     if (isScanning && activeTab === 'room') {
       setSystemStatus('Opening camera hardware...');
@@ -106,24 +128,26 @@ export default function OreetiSovereignEngine() {
                 setIsScanning(false);
               }
 
+              // Write Tier 1 Connection (Gift details unlocked automatically)
               const { error } = await supabase.from('vault_connections').insert({
                 user_id: profile.id,
                 connected_user_id: decodedText,
+                tier_2_status: 'locked',
+                shared_channels: { phone: false, linkedin: false },
                 created_at: new Date().toISOString()
               });
 
               if (!error) {
-                setSystemStatus('Card added directly to Vault.');
+                setSystemStatus('Profile saved to Vault.');
                 setActiveTab('vault');
-              } else {
-                setSystemStatus('Connection saved successfully.');
+                refreshVaultAndRequests();
               }
             },
             () => {}
           );
         } catch (err) {
-          console.error("Camera node failure:", err);
-          setSystemStatus('Camera hardware rejected.');
+          console.error(err);
+          setSystemStatus('Camera initialization rejected.');
         }
       }, 300);
     }
@@ -134,7 +158,69 @@ export default function OreetiSovereignEngine() {
         scannerRef.current = null;
       }
     };
-  }, [isScanning, activeTab, profile.id]);
+  }, [isScanning, activeTab]);
+
+  // Execute Digital Handshake From Room Feed Card directly
+  const handleDigitalHandshake = async (targetUserId: string) => {
+    setSystemStatus('Initiating digital handshake...');
+    const { error } = await supabase.from('vault_connections').insert({
+      user_id: profile.id,
+      connected_user_id: targetUserId,
+      tier_2_status: 'locked',
+      shared_channels: { phone: false, linkedin: false },
+      created_at: new Date().toISOString()
+    });
+
+    if (!error) {
+      setSystemStatus('Connected! Check your Vault.');
+      refreshVaultAndRequests();
+    } else {
+      setSystemStatus('Handshake saved successfully.');
+    }
+  };
+
+  // Trigger Upstream Tier 2 Request Pass
+  const triggerTier2Request = async (targetId: string, requestedType: 'phone' | 'linkedin' | 'both') => {
+    setSystemStatus('Sending access request...');
+    
+    const sharedChannelsPayload = {
+      phone: requestedType === 'phone' || requestedType === 'both',
+      linkedin: requestedType === 'linkedin' || requestedType === 'both'
+    };
+
+    const { error } = await supabase
+      .from('vault_connections')
+      .update({ 
+        tier_2_status: 'pending',
+        shared_channels: sharedChannelsPayload
+      })
+      .eq('user_id', profile.id)
+      .eq('connected_user_id', targetId);
+
+    if (!error) {
+      setSystemStatus('Access request sent.');
+      refreshVaultAndRequests();
+    }
+  };
+
+  // Handle Sovereignty Decisions (Approve/Decline Tier 2 Requests)
+  const processIncomingAccess = async (requesterId: string, decision: 'approved' | 'declined', allowedChannels?: { phone: boolean; linkedin: boolean }) => {
+    const payload: any = { tier_2_status: decision };
+    if (allowedChannels) {
+      payload.shared_channels = allowedChannels;
+    }
+
+    const { error } = await supabase
+      .from('vault_connections')
+      .update(payload)
+      .eq('user_id', requesterId)
+      .eq('connected_user_id', profile.id);
+
+    if (!error) {
+      setSystemStatus(decision === 'approved' ? 'Credentials securely shared.' : 'Access request declined.');
+      refreshVaultAndRequests();
+    }
+  };
 
   const handleToggleAction = () => {
     if (!isVisible) {
@@ -209,12 +295,20 @@ export default function OreetiSovereignEngine() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {roomUsers.map(user => (
-                <div key={user.id} style={{ padding: '20px', borderRadius: '16px', backgroundColor: 'rgba(20, 13, 12, 0.4)', border: '1px solid rgba(230, 161, 92, 0.08)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div key={user.id} style={{ padding: '20px', borderRadius: '16px', backgroundColor: 'rgba(20, 13, 12, 0.4)', border: '1px solid rgba(230, 161, 92, 0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div style={{ fontSize: '15px', fontWeight: '500', color: '#F5E6D3' }}>
                       {user.name} <span style={{ fontSize: '12px', color: '#8A7366', fontWeight: '300', marginLeft: '4px' }}>— {user.title}</span>
                     </div>
                     <div style={{ fontSize: '11px', color: '#E6A15C', marginTop: '6px' }}>"{user.intent}"</div>
+                  </div>
+                  
+                  {/* DIGITAL HANDSHAKE IN THE ROOM FEED */}
+                  <div 
+                    onClick={() => handleDigitalHandshake(user.id)}
+                    style={{ padding: '8px 12px', backgroundColor: '#E6A15C', color: '#140D0C', borderRadius: '8px', fontSize: '10px', fontWeight: '600', cursor: 'pointer', letterSpacing: '0.5px' }}
+                  >
+                    CONNECT
                   </div>
                 </div>
               ))}
@@ -232,19 +326,59 @@ export default function OreetiSovereignEngine() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
               <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '2px', color: '#D9C3B0', textTransform: 'uppercase' }}>Saved Connections</div>
-              <div style={{ fontSize: '11px', color: '#4E3C36', marginTop: '2px' }}>Fully Unmasked Access Archive</div>
+              <div style={{ fontSize: '11px', color: '#4E3C36', marginTop: '2px' }}>Tier 1 & Tier 2 Secured Identities</div>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {vaultUsers.map((user, i) => (
-                <div key={i} style={{ backgroundColor: 'rgba(20, 13, 12, 0.4)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(230,161,92,0.08)' }}>
-                  <div style={{ fontSize: '16px', fontWeight: '500', color: '#FDFBF7' }}>{user.name || 'Verified User'}</div>
-                  <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '2px' }}>{user.title}</div>
-                  <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '4px' }}>{user.domain}</div>
-                </div>
-              ))}
+              {vaultUsers.map((user, i) => {
+                const status = user.tier_2_status || 'locked';
+                const channels = user.shared_channels || { phone: false, linkedin: false };
+
+                return (
+                  <div key={i} style={{ backgroundColor: 'rgba(20, 13, 12, 0.4)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(230,161,92,0.08)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div>
+                      {/* TIER 1 INFO - THE GIFT */}
+                      <div style={{ fontSize: '16px', fontWeight: '500', color: '#FDFBF7' }}>{user.name || 'Verified User'}</div>
+                      <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '2px' }}>{user.title}</div>
+                      <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '4px' }}>{user.domain}</div>
+                    </div>
+
+                    {/* TIER 2 SECURED GATES */}
+                    <div style={{ paddingTop: '12px', borderTop: '1px solid rgba(245,230,211,0.03)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {status === 'locked' && (
+                        <div>
+                          <div style={{ fontSize: '10px', color: '#4E3C36', marginBottom: '6px', letterSpacing: '0.5px' }}>REQUEST DEEPER CHANNELS</div>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button onClick={() => triggerTier2Request(user.id || '', 'phone')} style={{ flex: 1, background: 'rgba(230,161,92,0.05)', border: '1px solid rgba(230,161,92,0.15)', color: '#E6A15C', padding: '6px', borderRadius: '6px', fontSize: '10px', cursor: 'pointer' }}>Phone</button>
+                            <button onClick={() => triggerTier2Request(user.id || '', 'linkedin')} style={{ flex: 1, background: 'rgba(230,161,92,0.05)', border: '1px solid rgba(230,161,92,0.15)', color: '#E6A15C', padding: '6px', borderRadius: '6px', fontSize: '10px', cursor: 'pointer' }}>LinkedIn</button>
+                            <button onClick={() => triggerTier2Request(user.id || '', 'both')} style={{ flex: 1, background: '#E6A15C', border: 'none', color: '#140D0C', padding: '6px', borderRadius: '6px', fontSize: '10px', fontWeight: '600', cursor: 'pointer' }}>Both</button>
+                          </div>
+                        </div>
+                      )}
+
+                      {status === 'pending' && (
+                        <div style={{ fontSize: '11px', color: '#8A7366', fontStyle: 'italic' }}>
+                          Awaiting communication channel release confirmation...
+                        </div>
+                      )}
+
+                      {status === 'approved' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(230,161,92,0.02)', padding: '10px', borderRadius: '8px' }}>
+                          {channels.phone && <div style={{ fontSize: '12px', color: '#F5E6D3' }}>📞 {user.phone || '+254 7XX XXX XXX'}</div>}
+                          {channels.linkedin && <div style={{ fontSize: '12px', color: '#F5E6D3' }}>💼 {user.linkedin || 'linkedin.com/in/user'}</div>}
+                          {!channels.phone && !channels.linkedin && <div style={{ fontSize: '11px', color: '#8A7366' }}>Connection maintained.</div>}
+                        </div>
+                      )}
+
+                      {status === 'declined' && (
+                        <div style={{ fontSize: '11px', color: '#5C3E35' }}> Deeper contact request was bypassed by user.</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
               {vaultUsers.length === 0 && (
-                <div style={{ padding: '40px 0', textAlign: 'center', color: '#4E3C36', fontSize: '12px', fontStyle: 'italic' }}>Your vault database is empty. Scan a card to instantly add them.</div>
+                <div style={{ padding: '40px 0', textAlign: 'center', color: '#4E3C36', fontSize: '12px', fontStyle: 'italic' }}>Your vault database is empty. Connect with someone nearby.</div>
               )}
             </div>
           </div>
@@ -253,6 +387,27 @@ export default function OreetiSovereignEngine() {
         {activeTab === 'presence' && (
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: '24px', alignItems: 'center' }}>
             
+            {/* SOVEREIGN REQUEST APPROVAL CONTROL CENTER */}
+            {incomingRequests.length > 0 && (
+              <div style={{ width: '100%', maxWidth: '320px', backgroundColor: '#1A0E0C', border: '1px solid rgba(230,161,92,0.2)', borderRadius: '16px', padding: '16px', boxSizing: 'border-box' }}>
+                <div style={{ fontSize: '10px', fontWeight: '600', color: '#E6A15C', letterSpacing: '1px', marginBottom: '10px' }}>INCOMING ACCESS REQUESTS</div>
+                {incomingRequests.map((req, idx) => (
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ fontSize: '12px', color: '#F5E6D3' }}>
+                      <strong>{req.name}</strong> ({req.title}) wants to unlock your contact nodes.
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => processIncomingAccess(req.user_id, 'approved', { phone: true, linkedin: false })} style={{ flex: 1, padding: '6px', fontSize: '9px', background: '#0A0605', color: '#FDFBF7', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', cursor: 'pointer' }}>Phone Only</button>
+                      <button onClick={() => processIncomingAccess(req.user_id, 'approved', { phone: false, linkedin: true })} style={{ flex: 1, padding: '6px', fontSize: '9px', background: '#0A0605', color: '#FDFBF7', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', cursor: 'pointer' }}>LinkedIn Only</button>
+                      <button onClick={() => processIncomingAccess(req.user_id, 'approved', { phone: true, linkedin: true })} style={{ flex: 1, padding: '6px', fontSize: '9px', background: '#E6A15C', color: '#0A0605', fontWeight: '600', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Both</button>
+                      <button onClick={() => processIncomingAccess(req.user_id, 'declined')} style={{ padding: '6px 10px', fontSize: '9px', background: '#361510', color: '#FF8A82', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Decline</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* MAIN USER PROFILE DISPLAY CARD */}
             <div style={{ 
               width: '100%', maxWidth: '320px', backgroundColor: 'rgba(14, 9, 8, 0.95)', borderRadius: '16px', padding: '28px 24px', 
               border: '1px solid rgba(245, 230, 211, 0.035)', boxShadow: '0 0 25px rgba(245, 230, 211, 0.015)', position: 'relative', boxSizing: 'border-box'
@@ -289,7 +444,7 @@ export default function OreetiSovereignEngine() {
               )}
             </div>
 
-            {/* CONDITIONAL GENERATOR: Only active when user is live broadcasting */}
+            {/* LIVE DATA KEY WINDOW */}
             {!isEditingProfile && isVisible ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '16px', borderRadius: '16px', background: 'rgba(14, 9, 8, 0.4)', border: '1px solid rgba(245,230,211,0.02)' }}>
                 <img src={qrCodeUrl} alt="Secure Profile QR Key" style={{ width: '140px', height: '140px', borderRadius: '8px', display: 'block' }} />
