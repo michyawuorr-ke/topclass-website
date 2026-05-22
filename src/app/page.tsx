@@ -20,7 +20,7 @@ interface Networker {
 export default function OreetiAmbientEngine() {
   const [activeTab, setActiveTab] = useState<'room' | 'vault' | 'presence'>('presence');
   const [isVisible, setIsVisible] = useState(false);
-  const [isEditing, setIsEditing] = useState(true); // Default true so fresh users know to type
+  const [isEditing, setIsEditing] = useState(true); 
   
   // Clean states
   const [fullName, setFullName] = useState('');
@@ -209,7 +209,7 @@ export default function OreetiAmbientEngine() {
 
   const confirmVisibility = async () => {
     if (!fullName.trim() || !role.trim() || !domain.trim() || !currentIntent.trim() || !selectedStation.trim()) {
-      setSystemAlert("Complete all fields before going live.");
+      setSystemAlert("Complete profile entries before broadcasting signal.");
       setTimeout(() => setSystemAlert(null), 4000);
       return;
     }
@@ -228,10 +228,16 @@ export default function OreetiAmbientEngine() {
     });
   };
 
+  // Extract dynamic single letter monogram initial safely
+  const getInitial = () => {
+    if (fullName.trim()) return fullName.trim().charAt(0).toUpperCase();
+    return 'P'; 
+  };
+
   return (
     <div style={{ margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#0A0605', color: '#FDFBF7', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box' }}>
       
-      {/* Toast Alert Engine */}
+      {/* Ambient Messaging Channel */}
       <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {ambientMeetingGuide && (
           <div onClick={() => setAmbientMeetingGuide(null)} style={{ background: '#140D0C', border: '1px solid #E6A15C', borderRadius: '12px', padding: '16px', color: '#F5E6D3', fontSize: '13px', lineHeight: '1.4', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', cursor: 'pointer' }}>
@@ -299,7 +305,7 @@ export default function OreetiAmbientEngine() {
         {activeTab === 'presence' && (
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: '28px', alignItems: 'center' }}>
             {incomingHandshakes.map((req, idx) => (
-              <div key={idx} style={{ width: '100%', maxWidth: '320px', backgroundColor: '#140D0C', border: '1px solid rgba(230,161,92,0.25)', borderRadius: '16px', padding: '18px', boxSizing: 'border-box' }}>
+              <div key={idx} style={{ width: '100%', maxWidth: '320px', backgroundColor: '#140D0C', border: '1px solid rgba(230, 161, 92, 0.25)', borderRadius: '16px', padding: '18px', boxSizing: 'border-box' }}>
                 <div style={{ fontSize: '9px', fontWeight: '600', color: '#E6A15C', letterSpacing: '1.5px', marginBottom: '6px' }}>INCOMING CONNECTION REQUEST</div>
                 <div style={{ fontSize: '13px', color: '#F5E6D3', marginBottom: '12px' }}><strong>{req.name}</strong> has matched your room signal. Connect?</div>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -309,56 +315,78 @@ export default function OreetiAmbientEngine() {
               </div>
             ))}
 
-            {/* Museum Grade Premium Card Layout */}
-            <div style={{ width: '100%', maxWidth: '340px', backgroundColor: 'rgba(14, 9, 8, 0.7)', borderRadius: '24px', padding: '32px 24px', border: '1px solid rgba(245, 230, 211, 0.035)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '24px', position: 'relative' }}>
+            {/* High-End Obsidian Monogram Card Structure */}
+            <div style={{ width: '100%', maxWidth: '340px', backgroundColor: '#130E0D', borderRadius: '24px', padding: '24px', boxSizing: 'border-box', display: 'flex', gap: '16px', position: 'relative', minHeight: '120px', border: '1px solid rgba(255,255,255,0.015)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
               
-              {/* Minimalist Interactive Edit Handle */}
-              <div 
-                onClick={() => setIsEditing(!isEditing)} 
-                style={{ position: 'absolute', top: '24px', right: '24px', fontSize: '10px', color: '#E6A15C', letterSpacing: '1px', fontWeight: '600', cursor: 'pointer', opacity: 0.8 }}
-              >
-                {isEditing ? '[ SAVE ]' : '[ EDIT ]'}
+              {/* Premium Circular Initial Monogram Avatar */}
+              <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'linear-gradient(135deg, #1E1B4B 0%, #31102F 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: '600', color: '#FDFBF7', flexShrink: 0, boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.1)' }}>
+                {getInitial()}
               </div>
 
-              {isEditing ? (
-                /* Pure Inline Edit Elements — Boxless Layout */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '12px' }}>
-                  <input 
-                    type="text" 
-                    placeholder="Enter Full Name" 
-                    value={fullName} 
-                    onChange={(e) => setFullName(e.target.value)} 
-                    style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(230, 161, 92, 0.2)', padding: '6px 0', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '18px', fontWeight: '300' }} 
-                  />
-                  <input 
-                    type="text" 
-                    placeholder="Enter Professional Role" 
-                    value={role} 
-                    onChange={(e) => setRole(e.target.value)} 
-                    style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(230, 161, 92, 0.2)', padding: '6px 0', color: '#E6A15C', boxSizing: 'border-box', outline: 'none', fontSize: '14px' }} 
-                  />
-                  <input 
-                    type="text" 
-                    placeholder="Enter Operational Domain" 
-                    value={domain} 
-                    onChange={(e) => setDomain(e.target.value)} 
-                    style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(230, 161, 92, 0.2)', padding: '6px 0', color: '#A68F81', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
-                  />
-                </div>
-              ) : (
-                /* Pristine Visual Output Render */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '12px' }}>
-                  <div style={{ fontSize: '20px', fontWeight: '300', color: fullName ? '#F5E6D3' : '#4E3C36' }}>
-                    {fullName || 'Identity Unassigned'}
+              {/* Dynamic Information Content Pipeline */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', paddingRight: '24px', paddingTop: '2px' }}>
+                {isEditing ? (
+                  /* Inline Boxless Minimal Inputs */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <input 
+                      type="text" 
+                      placeholder="Full Name" 
+                      value={fullName} 
+                      onChange={(e) => setFullName(e.target.value)} 
+                      style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '18px', fontWeight: '600' }} 
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="Product Architect" 
+                      value={role} 
+                      onChange={(e) => setRole(e.target.value)} 
+                      style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, color: '#A5B4FC', boxSizing: 'border-box', outline: 'none', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }} 
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="Nexus Labs" 
+                      value={domain} 
+                      onChange={(e) => setDomain(e.target.value)} 
+                      style={{ width: '100%', background: 'transparent', border: 'none', padding: 0, color: '#8A7366', boxSizing: 'border-box', outline: 'none', fontSize: '13px', fontWeight: '400' }} 
+                    />
                   </div>
-                  <div style={{ fontSize: '13px', color: role ? '#E6A15C' : '#4E3C36', marginTop: '2px', letterSpacing: '0.3px' }}>
-                    {role || 'Role Unspecified'}
+                ) : (
+                  /* Flawless Typographic Premium Presentation Layer */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ fontSize: '18px', fontWeight: '600', color: fullName ? '#FDFBF7' : '#3E2E2A' }}>
+                      {fullName || 'Identity Unassigned'}
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
+                      {role ? (
+                        <div style={{ background: 'rgba(165, 180, 252, 0.08)', border: '1px solid rgba(165, 180, 252, 0.15)', borderRadius: '100px', padding: '4px 10px', fontSize: '9px', fontWeight: '700', color: '#A5B4FC', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                          {role}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '10px', color: '#3E2E2A', textTransform: 'uppercase', letterSpacing: '1px' }}>Role Empty</div>
+                      )}
+
+                      <div style={{ fontSize: '13px', color: domain ? '#94A3B8' : '#3E2E2A', fontWeight: '400' }}>
+                        {domain || 'Domain Empty'}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '12px', color: domain ? '#A68F81' : '#4E3C36', marginTop: '4px' }}>
-                    {domain || 'Domain Empty'}
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
+
+              {/* Minimal Geometric Circular Pencil SVG Action Link */}
+              <div 
+                onClick={() => setIsEditing(!isEditing)} 
+                style={{ position: 'absolute', top: '20px', right: '20px', width: '32px', height: '32px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.04)', background: isEditing ? 'rgba(230,161,92,0.1)' : 'rgba(255,255,255,0.01)', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s ease' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={isEditing ? "#E6A15C" : "#64748B"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  {isEditing ? (
+                    <path d="M20 6L9 17l-5-5" /> 
+                  ) : (
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  )}
+                </svg>
+              </div>
 
             </div>
 
@@ -368,14 +396,14 @@ export default function OreetiAmbientEngine() {
                 <div style={{ fontSize: '8px', color: '#E6A15C', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: '600' }}>Signal Broadcaster Engine Active</div>
               </div>
             ) : (
-              <div style={{ padding: '0 20px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', letterSpacing: '0.5px', fontStyle: 'italic', maxWidth: '280px', lineHeight: '1.5' }}>Use edit control above to prime your digital identity asset.</div>
+              <div style={{ padding: '0 20px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', letterSpacing: '0.5px', fontStyle: 'italic', maxWidth: '280px', lineHeight: '1.5' }}>Engage the pencil component to set up your network anchor node.</div>
             )}
           </div>
         )}
 
       </div>
 
-      {/* Persistent Bottom Control Layout */}
+      {/* Persistent Base Interaction Layer */}
       <div style={{ background: 'linear-gradient(to top, #0A0605 85%, rgba(10, 6, 5, 0))', padding: '0 24px 30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box' }}>
         
         {/* Streamlined Pre-Live Interstitial Context Layer */}
@@ -415,12 +443,12 @@ export default function OreetiAmbientEngine() {
             <div style={{ fontSize: '13px', fontWeight: '400', color: '#F5E6D3', letterSpacing: '0.3px' }}>Visible Broadcast Mode</div>
             {isVisible && <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '3px' }}>Stationed at {selectedStation}</div>}
           </div>
-          <div onClick={() => { if (!isVisible) { if (!fullName.trim() || !role.trim() || !domain.trim()) { setSystemAlert("Complete your premium profile card details first."); setTimeout(() => setSystemAlert(null), 3000); return; } setShowIntentModal(true); } else { setIsVisible(false); supabase.from('active_presence_nodes').delete().eq('id', userId); } }} style={{ width: '46px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer', transition: 'background-color 0.2s' }}>
+          <div onClick={() => { if (!isVisible) { if (!fullName.trim() || !role.trim() || !domain.trim()) { setSystemAlert("Complete your profile card details first."); setTimeout(() => setSystemAlert(null), 3000); return; } setShowIntentModal(true); } else { setIsVisible(false); supabase.from('active_presence_nodes').delete().eq('id', userId); } }} style={{ width: '46px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer', transition: 'background-color 0.2s' }}>
             <div style={{ width: '18px', height: '18px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '25px' : '3px', transition: 'left 0.2s', boxShadow: '0 2px 5px rgba(0,0,0,0.4)' }} />
           </div>
         </div>
 
-        {/* System Tab Bar Switchboard */}
+        {/* Tab Selection Bar Switchboard */}
         <div style={{ height: '56px', backgroundColor: 'rgba(20, 13, 12, 0.95)', borderRadius: '20px', border: '1px solid rgba(245, 230, 211, 0.05)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', backdropFilter: 'blur(30px)' }}>
           <div onClick={() => { setActiveTab('room'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'room' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px', fontWeight: activeTab === 'room' ? '600' : '400' }}>ROOM</div>
           <div onClick={() => { setActiveTab('vault'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'vault' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px', fontWeight: activeTab === 'vault' ? '600' : '400' }}>VAULT</div>
