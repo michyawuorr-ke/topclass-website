@@ -36,7 +36,7 @@ export default function OreetiSovereignEngine() {
   
   const [dynamicQrToken, setDynamicQrToken] = useState('');
 
-  const [profile] = useState({
+  const [profile, setProfile] = useState({
     id: 'michy-production-node-99', 
     name: 'Michy',
     title: 'Principal Architecture Lead',
@@ -47,7 +47,7 @@ export default function OreetiSovereignEngine() {
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
-  // Dynamic token generation loop
+  // Dynamic Token Rotation Loop (Generates fresh unique code signatures automatically)
   useEffect(() => {
     const generateSecureToken = () => {
       const securitySalt = Math.random().toString(36).substring(2, 7);
@@ -118,7 +118,7 @@ export default function OreetiSovereignEngine() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vault_connections' }, (payload: any) => {
         if (payload.new.user_id === profile.id && payload.new.connection_method === 'discovery' && payload.new.handshake_accepted === true) {
           setShowLookUpAlert(true);
-          setTimeout(() => setShowLookUpAlert(false), 5000); // 5-second handshake countdown for visual tension
+          setTimeout(() => setShowLookUpAlert(false), 5000);
         }
       })
       .subscribe();
@@ -128,10 +128,9 @@ export default function OreetiSovereignEngine() {
     };
   }, [activeTab, profile.id]);
 
-  // Pro-Engine Native Camera Handler
+  // Clean Native Camera Integration Layer
   useEffect(() => {
     if (isScanning && activeTab === 'room') {
-      // Build a clean instance linked to the naked element ID
       const nativeScanner = new Html5Qrcode("reader-engine");
       html5QrCodeRef.current = nativeScanner;
 
@@ -141,14 +140,14 @@ export default function OreetiSovereignEngine() {
           fps: 24,
           qrbox: (viewfinderWidth, viewfinderHeight) => {
             const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-            const boxSize = Math.floor(minEdge * 0.7);
+            const boxSize = Math.floor(minEdge * 0.75);
             return { width: boxSize, height: boxSize };
           }
         },
         async (decodedText) => {
           const cleanId = decodedText.split('||')[0];
           
-          // Terminate lens completely immediately on validation
+          // Force immediate hardware teardown to prevent trailing duplicate scan triggers
           if (html5QrCodeRef.current) {
             await html5QrCodeRef.current.stop().catch(() => {});
             html5QrCodeRef.current = null;
@@ -164,12 +163,13 @@ export default function OreetiSovereignEngine() {
             created_at: new Date().toISOString()
           });
 
+          // Instantly shift view context away from camera to safe vault inventory
           setActiveTab('vault');
           syncDatabaseFeeds();
         },
-        () => {} // Silent catch framework for background cycles
+        () => {} 
       ).catch(() => {
-        setSystemStatus('Camera hardware request rejected.');
+        setSystemStatus('Lens system initialisation failure.');
       });
     }
 
@@ -280,9 +280,7 @@ export default function OreetiSovereignEngine() {
 
             {isScanning && (
               <div style={{ width: '100%', maxWidth: '340px', alignSelf: 'center', overflow: 'hidden', borderRadius: '24px', border: '1px solid rgba(230,161,92,0.15)', background: '#000', position: 'relative' }}>
-                {/* Naked Element target Container */}
                 <div id="reader-engine" style={{ width: '100%', minHeight: '260px' }}></div>
-                {/* Clean Injection Overrides */}
                 <style>{`
                   #reader-engine video { width: 100% !important; height: auto !important; min-height: 260px !important; object-fit: cover !important; display: block !important; border-radius: 24px !important; }
                   #reader-engine { border: none !important; }
@@ -371,7 +369,6 @@ export default function OreetiSovereignEngine() {
 
       </div>
 
-      {/* 40% Ergonomic Interactive Thumb Zone Base */}
       <div style={{ background: 'linear-gradient(to top, #0A0605 80%, rgba(10, 6, 5, 0))', padding: '0 24px 30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box' }}>
         {showIntentModal && (
           <div style={{ backgroundColor: '#140D10', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '16px', padding: '16px' }}>
