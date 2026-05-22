@@ -103,15 +103,19 @@ export default function OreetiAmbientEngine() {
     return () => clearInterval(intervalSync);
   }, [isVisible, userId]);
 
+  // Unified dynamic sync processor
   const syncDatabaseFeeds = async () => {
     if (!userId) return;
     
+    // 1. Fetch vault connections (Filter out self-reflections)
     const { data: vaultData } = await supabase
       .from('vault_connections')
       .select('*')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .not('connected_user_id', 'eq', userId); // Strictly prevents self-listing
     if (vaultData) setVaultUsers(vaultData);
 
+    // 2. Fetch incoming discovery handshake requests
     const { data: discoveryRequests } = await supabase
       .from('vault_connections')
       .select('*')
@@ -120,6 +124,7 @@ export default function OreetiAmbientEngine() {
       .eq('qr_scanned', false);
     if (discoveryRequests) setIncomingHandshakes(discoveryRequests);
 
+    // 3. Fetch incoming Tier-2 elevation requests
     const { data: t2Requests } = await supabase
       .from('vault_connections')
       .select('*')
@@ -133,14 +138,32 @@ export default function OreetiAmbientEngine() {
     }
   };
 
+  // Real-time Database Socket Pipeline
   useEffect(() => {
     if (!userId) return;
+
+    // Run initial sync data population
     syncDatabaseFeeds();
-    const intervalSync = setInterval(syncDatabaseFeeds, 3500);
-    return () => clearInterval(intervalSync);
-  }, [activeTab, userId]);
+
+    // Establish immediate streaming subscription channel
+    const absolutePresenceSubscription = supabase
+      .channel('realtime_aura_handshakes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'vault_connections' },
+        () => {
+          syncDatabaseFeeds(); // Instantly re-syncs arrays on any row update/insert
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(absolutePresenceSubscription);
+    };
+  }, [userId, selectedVaultItem]);
 
   const triggerDiscoveryHandshake = async (targetUser: Networker) => {
+    if (targetUser.id === userId) return; // Guard logic against self-handshakes
     setRoomUsers(prev => prev.filter(u => u.id !== targetUser.id));
 
     await supabase.from('vault_connections').insert({ 
@@ -158,7 +181,6 @@ export default function OreetiAmbientEngine() {
     
     setSystemAlert(`Handshake requested with ${targetUser.name.split(' ')[0]}`);
     setTimeout(() => setSystemAlert(null), 3000);
-    syncDatabaseFeeds();
   };
 
   const acceptDiscoveryHandshake = async (request: any) => {
@@ -183,7 +205,6 @@ export default function OreetiAmbientEngine() {
 
     setSystemAlert("Handshake accepted mutually.");
     setTimeout(() => setSystemAlert(null), 3000);
-    syncDatabaseFeeds();
   };
 
   const declineDiscoveryHandshake = async (reqId: number) => {
@@ -191,7 +212,6 @@ export default function OreetiAmbientEngine() {
     await supabase.from('vault_connections').delete().eq('id', reqId);
     setSystemAlert("Handshake bypassed.");
     setTimeout(() => setSystemAlert(null), 2000);
-    syncDatabaseFeeds();
   };
 
   const startQrScanner = async () => {
@@ -248,7 +268,6 @@ export default function OreetiAmbientEngine() {
                 setSystemAlert("Mutual Physical Connection Established.");
                 setTimeout(() => setSystemAlert(null), 3000);
                 setActiveTab('vault');
-                syncDatabaseFeeds();
               }
             }
           },
@@ -284,7 +303,6 @@ export default function OreetiAmbientEngine() {
     setTimeout(() => setSystemAlert(null), 3000);
     setShowTier2Options(false);
     setSelectedVaultItem(null);
-    syncDatabaseFeeds();
   };
 
   const resolveTier2Request = async (request: any, approvePhone: boolean, approveLinkedin: boolean) => {
@@ -301,7 +319,6 @@ export default function OreetiAmbientEngine() {
 
     setSystemAlert("Sovereign permission resolved.");
     setTimeout(() => setSystemAlert(null), 3000);
-    syncDatabaseFeeds();
   };
 
   const saveProfileLocal = () => {
@@ -343,7 +360,6 @@ export default function OreetiAmbientEngine() {
   return (
     <div style={{ margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#0A0605', color: '#FDFBF7', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box' }}>
       
-      {/* Real-time Web Vitals tracking layer */}
       <Analytics />
 
       <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999 }}>
