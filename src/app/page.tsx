@@ -70,7 +70,7 @@ export default function OreetiAmbientEngine() {
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(dynamicQrToken)}&color=e6a15c&bgcolor=0e0908`;
 
-  // Persistent heartbeats to ensure secondary testing nodes stay visible to each other
+  // Persistent heartbeats to ensure secondary testing nodes stay visible
   useEffect(() => {
     if (!isVisible || !userId) return;
     const heartbeat = setInterval(async () => {
@@ -78,16 +78,15 @@ export default function OreetiAmbientEngine() {
         .from('active_presence_nodes')
         .update({ last_seen: new Date().toISOString() })
         .eq('id', userId);
-    }, 5000); // Accelerated heartbeat for instant local feedback loop testing
+    }, 5000);
     return () => clearInterval(heartbeat);
   }, [isVisible, userId]);
 
   // Dynamic discovery pipeline pulling active broadcast nodes inside the space
   const fetchActiveNodes = async () => {
     if (!userId) return;
-    // Widened horizon window slightly to capture secondary simulated test devices immediately
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('active_presence_nodes')
       .select('id, name, title, domain, intent, current_station')
       .gt('last_seen', oneHourAgo)
@@ -106,7 +105,6 @@ export default function OreetiAmbientEngine() {
 
     fetchActiveNodes();
 
-    // Direct subscription channel binding client arrays together in real-time
     const realTimeChannel = supabase
       .channel('room_ambient_sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'active_presence_nodes' }, () => {
@@ -222,7 +220,7 @@ export default function OreetiAmbientEngine() {
       {/* Toast Alert Systems */}
       <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {ambientMeetingGuide && (
-          <div onClick={() => setAmbientMeetingGuide(null)} style={{ background: '#140D0C', border: '1px solid #E6A15C', borderRadius: '12px', padding: '16px', color: '#F5E6D3', fontSize: '12px', trackingLetter: '0.5px', cursor: 'pointer' }}>
+          <div onClick={() => setAmbientMeetingGuide(null)} style={{ background: '#140D0C', border: '1px solid #E6A15C', borderRadius: '12px', padding: '16px', color: '#F5E6D3', fontSize: '12px', letterSpacing: '0.5px', cursor: 'pointer' }}>
             {ambientMeetingGuide}
           </div>
         )}
@@ -303,7 +301,7 @@ export default function OreetiAmbientEngine() {
               {/* Clean Absolute Global Edit Handle (Always Pencil SVG Icon) */}
               <div 
                 onClick={() => setIsEditing(!isEditing)} 
-                style={{ position: 'absolute', top: '32px', right: '32px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid rgba(230,161,92,0.1)', background: 'rgba(20,13,12,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                style={{ position: 'absolute', top: '32px', right: '32px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid rgba(230,161,92,0.1)', background: 'rgba(20,13,12,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E6A15C" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
@@ -355,25 +353,24 @@ export default function OreetiAmbientEngine() {
                   </div>
                 </div>
               ) : (
-                /* Uncluttered Spatial Presentation Layer — Pristine Champagne & Muted Cognac Flow */
+                /* Pure Vertical Stack Layout Architecture for Full-Card Volume Presence */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
-                  <div style={{ fontSize: '24px', fontWeight: '300', color: fullName ? '#FDFBF7' : '#3E2E2A', letterSpacing: '-0.5px', lineHeight: '1.2' }}>
-                    {fullName || 'Identity Unassigned'}
+                  
+                  {/* Name Tier Block */}
+                  <div style={{ fontSize: '24px', fontWeight: '300', color: fullName.trim() ? '#FDFBF7' : '#3E2E2A', letterSpacing: '-0.5px', lineHeight: '1.2' }}>
+                    {fullName.trim() ? fullName : 'name'}
                   </div>
                   
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-                    {role ? (
-                      <div style={{ color: '#E6A15C', fontSize: '14px', fontWeight: '400', letterSpacing: '0.5px' }}>
-                        {role}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: '11px', color: '#3E2E2A', textTransform: 'uppercase', letterSpacing: '1px' }}>Designation Cryptic</div>
-                    )}
-
-                    <div style={{ fontSize: '13px', color: domain ? '#D9C3B0' : '#3E2E2A', fontWeight: '300', opacity: 0.8 }}>
-                      {domain || 'Domain Space Empty'}
-                    </div>
+                  {/* Role Tier Block */}
+                  <div style={{ color: role.trim() ? '#E6A15C' : '#3E2E2A', fontSize: '14px', fontWeight: '400', letterSpacing: '0.5px' }}>
+                    {role.trim() ? role : 'role'}
                   </div>
+
+                  {/* Domain Tier Block */}
+                  <div style={{ fontSize: '13px', color: domain.trim() ? '#D9C3B0' : '#3E2E2A', fontWeight: '300', opacity: domain.trim() ? 0.8 : 1 }}>
+                    {domain.trim() ? domain : 'domain'}
+                  </div>
+                  
                 </div>
               )}
 
