@@ -42,7 +42,6 @@ export default function OreetiSovereignEngine() {
 
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
-  // Dynamic QR Code Generation API Link (Production Grade, No Mock Components)
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(profile.id)}&color=e6a15c&bgcolor=0e0908`;
 
   useEffect(() => {
@@ -75,43 +74,38 @@ export default function OreetiSovereignEngine() {
     };
   }, [isVisible, sessionAnchor, profile.id]);
 
-  // Fetch Vaulted relationships from production database
   useEffect(() => {
     const fetchVaultConnections = async () => {
       const { data, error } = await supabase
         .from('vault_connections')
-        .select('connected_user_id, full_name, title, domain')
+        .select('connected_user_id, name, title, domain')
         .eq('user_id', profile.id);
 
-      if (!error && data) setVaultUsers(data as any[]);
+      if (!error && data) setVaultUsers(data as Networker[]);
     };
     fetchVaultConnections();
   }, [activeTab, profile.id]);
 
-  // Initializing Hardware Camera Interface
   useEffect(() => {
     if (isScanning && activeTab === 'room') {
       setSystemStatus('Opening optical camera hardware...');
       
-      // Delay initialization slightly to ensure container element is cleanly rendered in DOM
       setTimeout(() => {
         try {
           scannerRef.current = new Html5QrcodeScanner(
             "reader-spatial-node",
             { fps: 10, qrbox: { width: 200, height: 200 } },
-            /* verbose= */ false
+            false
           );
 
           scannerRef.current.render(
             async (decodedText) => {
-              // Action performed immediately upon valid QR capture
               setSystemStatus('Target identity token verified.');
               if (scannerRef.current) {
                 scannerRef.current.clear();
                 setIsScanning(false);
               }
 
-              // Upstream Write: Instantly tie identities together in PostgreSQL Vault
               const { error } = await supabase.from('vault_connections').insert({
                 user_id: profile.id,
                 connected_user_id: decodedText,
@@ -125,9 +119,7 @@ export default function OreetiSovereignEngine() {
                 setSystemStatus('Connection bound successfully.');
               }
             },
-            (error) => {
-              // Non-blocking catch for frame scanning misses
-            }
+            () => {}
           );
         } catch (err) {
           console.error("Camera node failure:", err);
@@ -201,7 +193,6 @@ export default function OreetiSovereignEngine() {
                 <div style={{ fontSize: '11px', color: '#4E3C36', marginTop: '2px' }}>People Nearby</div>
               </div>
               
-              {/* TRIGGER KEY IN 40% REVENUE ZONE */}
               <div 
                 onClick={() => setIsScanning(!isScanning)} 
                 style={{ fontSize: '10px', color: '#E6A15C', border: '1px solid rgba(230,161,92,0.2)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', letterSpacing: '0.5px', fontWeight: '600', background: isScanning ? 'rgba(230,161,92,0.1)' : 'transparent' }}
@@ -210,7 +201,6 @@ export default function OreetiSovereignEngine() {
               </div>
             </div>
 
-            {/* LIVE CAMERA VIEWFINDER WINDOW */}
             {isScanning && (
               <div style={{ width: '100%', maxWidth: '340px', alignSelf: 'center', overflow: 'hidden', borderRadius: '16px', border: '1px solid rgba(245, 230, 211, 0.1)', background: '#000' }}>
                 <div id="reader-spatial-node" style={{ width: '100%' }}></div>
@@ -248,7 +238,7 @@ export default function OreetiSovereignEngine() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {vaultUsers.map((user, i) => (
                 <div key={i} style={{ backgroundColor: 'rgba(20, 13, 12, 0.4)', borderRadius: '16px', padding: '20px', border: '1px solid rgba(230,161,92,0.08)' }}>
-                  <div style={{ fontSize: '16px', fontWeight: '500', color: '#FDFBF7' }}>{user.full_name || 'Verified Vault User'}</div>
+                  <div style={{ fontSize: '16px', fontWeight: '500', color: '#FDFBF7' }}>{user.name || 'Verified Vault User'}</div>
                   <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '2px' }}>{user.title}</div>
                   <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '4px' }}>{user.domain}</div>
                 </div>
@@ -263,7 +253,6 @@ export default function OreetiSovereignEngine() {
         {activeTab === 'presence' && (
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: '24px', alignItems: 'center' }}>
             
-            {/* COMPACT CARD */}
             <div style={{ 
               width: '100%', maxWidth: '320px', backgroundColor: 'rgba(14, 9, 8, 0.95)', borderRadius: '16px', padding: '28px 24px', 
               border: '1px solid rgba(245, 230, 211, 0.035)', boxShadow: '0 0 25px rgba(245, 230, 211, 0.015)', position: 'relative', boxSizing: 'border-box'
@@ -294,13 +283,12 @@ export default function OreetiSovereignEngine() {
                     <div style={{ fontSize: '13px', color: '#E6A15C', marginTop: '4px', fontWeight: '400' }}>{profile.title}</div>
                   </div>
                   {profile.domain && (
-                    <div style={{ fontSize: '11px', color: '#8A7366', lineHeight: '1.5', borderTop: '1px solid rgba(245,230,211,0.03)', paddingTop: '12px' }}>{profile.domain}</div>
+                    <div style={{ fontSize: '11px', color: '#8A7366', lineHeight: '1.5', borderTop: '1px solid rgba(245, 230, 211, 0.03)', paddingTop: '12px' }}>{profile.domain}</div>
                   )}
                 </div>
               )}
             </div>
 
-            {/* PRODUCTION QR GENERATOR EMBED */}
             {!isEditingProfile && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '16px', borderRadius: '16px', background: 'rgba(14, 9, 8, 0.4)', border: '1px solid rgba(245,230,211,0.02)' }}>
                 <img src={qrCodeUrl} alt="Secure Profile QR Node" style={{ width: '140px', height: '140px', borderRadius: '8px', display: 'block' }} />
