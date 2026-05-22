@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project.supabase.co';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
@@ -27,18 +27,16 @@ export default function OreetiSovereignEngine() {
   const [sessionAnchor] = useState('Nairobi Garage');
   const [showIntentModal, setShowIntentModal] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [showLookUpAlert, setShowLookUpAlert] = useState(false);
 
   // Feeds
   const [roomUsers, setRoomUsers] = useState<Networker[]>([]);
   const [vaultUsers, setVaultUsers] = useState<Networker[]>([]);
   const [incomingHandshakes, setIncomingHandshakes] = useState<any[]>([]);
-  const [incomingTier2Requests, setIncomingTier2Requests] = useState<any[]>([]);
   
   const [dynamicQrToken, setDynamicQrToken] = useState('');
 
-  const [profile, setProfile] = useState({
+  const [profile] = useState({
     id: 'michy-production-node-99', 
     name: 'Michy',
     title: 'Principal Architecture Lead',
@@ -47,12 +45,9 @@ export default function OreetiSovereignEngine() {
     linkedin: 'linkedin.com/in/michy'
   });
 
-  const [editName, setEditName] = useState(profile.name);
-  const [editTitle, setEditTitle] = useState(profile.title);
-  const [editDomain, setEditDomain] = useState(profile.domain);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-
+  // Dynamic token generation loop
   useEffect(() => {
     const generateSecureToken = () => {
       const securitySalt = Math.random().toString(36).substring(2, 7);
@@ -123,7 +118,7 @@ export default function OreetiSovereignEngine() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vault_connections' }, (payload: any) => {
         if (payload.new.user_id === profile.id && payload.new.connection_method === 'discovery' && payload.new.handshake_accepted === true) {
           setShowLookUpAlert(true);
-          setTimeout(() => setShowLookUpAlert(false), 3000);
+          setTimeout(() => setShowLookUpAlert(false), 5000); // 5-second handshake countdown for visual tension
         }
       })
       .subscribe();
@@ -133,58 +128,55 @@ export default function OreetiSovereignEngine() {
     };
   }, [activeTab, profile.id]);
 
-  // Ultra-Resilient Lens Initialiser
+  // Pro-Engine Native Camera Handler
   useEffect(() => {
     if (isScanning && activeTab === 'room') {
-      setSystemStatus('Lens waking up...');
-      
-      setTimeout(() => {
-        try {
-          // Broad parameters to guarantee execution across Safari iOS and Android Chrome wrappers
-          scannerRef.current = new Html5QrcodeScanner(
-            "reader-spatial-node",
-            { 
-              fps: 24, 
-              qrbox: { width: 250, height: 250 },
-              // Fallback array architecture: Prefer environment, accept unconstrained default if forced
-              videoConstraints: { facingMode: "environment" }
-            },
-            /* verbose= */ false
-          );
+      // Build a clean instance linked to the naked element ID
+      const nativeScanner = new Html5Qrcode("reader-engine");
+      html5QrCodeRef.current = nativeScanner;
 
-          scannerRef.current.render(
-            async (decodedText) => {
-              const cleanId = decodedText.split('||')[0];
-              if (scannerRef.current) {
-                scannerRef.current.clear().catch(() => {});
-                setIsScanning(false);
-              }
+      nativeScanner.start(
+        { facingMode: "environment" }, 
+        {
+          fps: 24,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const boxSize = Math.floor(minEdge * 0.7);
+            return { width: boxSize, height: boxSize };
+          }
+        },
+        async (decodedText) => {
+          const cleanId = decodedText.split('||')[0];
+          
+          // Terminate lens completely immediately on validation
+          if (html5QrCodeRef.current) {
+            await html5QrCodeRef.current.stop().catch(() => {});
+            html5QrCodeRef.current = null;
+            setIsScanning(false);
+          }
 
-              await supabase.from('vault_connections').insert({
-                user_id: profile.id,
-                connected_user_id: cleanId,
-                connection_method: 'scan',
-                tier_2_status: 'locked',
-                shared_channels: { phone: false, linkedin: false },
-                created_at: new Date().toISOString()
-              });
+          await supabase.from('vault_connections').insert({
+            user_id: profile.id,
+            connected_user_id: cleanId,
+            connection_method: 'scan',
+            tier_2_status: 'locked',
+            shared_channels: { phone: false, linkedin: false },
+            created_at: new Date().toISOString()
+          });
 
-              setSystemStatus('Secure connection written.');
-              setActiveTab('vault');
-              syncDatabaseFeeds();
-            },
-            () => {} // Suppressed internal debug loop updates to save mobile CPU cycles
-          );
-        } catch (err) {
-          setSystemStatus('Lens access error.');
-        }
-      }, 250);
+          setActiveTab('vault');
+          syncDatabaseFeeds();
+        },
+        () => {} // Silent catch framework for background cycles
+      ).catch(() => {
+        setSystemStatus('Camera hardware request rejected.');
+      });
     }
 
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.clear().catch(() => {});
-        scannerRef.current = null;
+      if (html5QrCodeRef.current) {
+        html5QrCodeRef.current.stop().catch(() => {});
+        html5QrCodeRef.current = null;
       }
     };
   }, [isScanning, activeTab]);
@@ -275,18 +267,25 @@ export default function OreetiSovereignEngine() {
                 <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '2px', color: '#D9C3B0', textTransform: 'uppercase' }}>{sessionAnchor}</div>
                 <div style={{ fontSize: '11px', color: '#4E3C36', marginTop: '2px' }}>People Nearby</div>
               </div>
-              <div onClick={() => setIsScanning(!isScanning)} style={{ fontSize: '10px', color: '#E6A15C', border: '1px solid rgba(230,161,92,0.2)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', background: isScanning ? 'rgba(230,161,92,0.1)' : 'transparent' }}>
+              <div onClick={async () => {
+                if (isScanning && html5QrCodeRef.current) {
+                  await html5QrCodeRef.current.stop().catch(() => {});
+                  html5QrCodeRef.current = null;
+                }
+                setIsScanning(!isScanning);
+              }} style={{ fontSize: '10px', color: '#E6A15C', border: '1px solid rgba(230,161,92,0.2)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', background: isScanning ? 'rgba(230,161,92,0.1)' : 'transparent' }}>
                 {isScanning ? 'CLOSE' : 'SCAN CARD'}
               </div>
             </div>
 
             {isScanning && (
-              <div style={{ width: '100%', maxWidth: '340px', alignSelf: 'center', overflow: 'hidden', borderRadius: '24px', border: '1px solid rgba(230,161,92,0.15)', background: '#000' }}>
-                <div id="reader-spatial-node" style={{ width: '100%' }}></div>
+              <div style={{ width: '100%', maxWidth: '340px', alignSelf: 'center', overflow: 'hidden', borderRadius: '24px', border: '1px solid rgba(230,161,92,0.15)', background: '#000', position: 'relative' }}>
+                {/* Naked Element target Container */}
+                <div id="reader-engine" style={{ width: '100%', minHeight: '260px' }}></div>
+                {/* Clean Injection Overrides */}
                 <style>{`
-                  #reader-spatial-node__dashboard, #reader-spatial-node__status_span, #reader-spatial-node button, #reader-spatial-node img { display: none !important; }
-                  #reader-spatial-node { border: none !important; }
-                  #reader-spatial-node video { width: 100% !important; height: auto !important; min-height: 200px !important; object-fit: cover !important; display: block !important; border-radius: 24px !important; }
+                  #reader-engine video { width: 100% !important; height: auto !important; min-height: 260px !important; object-fit: cover !important; display: block !important; border-radius: 24px !important; }
+                  #reader-engine { border: none !important; }
                 `}</style>
               </div>
             )}
@@ -362,7 +361,7 @@ export default function OreetiSovereignEngine() {
             {isVisible ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '16px', borderRadius: '16px', background: 'rgba(14, 9, 8, 0.4)' }}>
                 <img src={qrCodeUrl} alt="Dynamic Key" style={{ width: '140px', height: '140px', borderRadius: '8px' }} />
-                <div style={{ fontSize: '8px', color: '#8A7366', letterSpacing: '1px', textTransform: 'uppercase' }}>Dynamic Security Node Token Rotation Active</div>
+                <div style={{ fontSize: '8px', color: '#8A7366', letterSpacing: '1px', textTransform: 'uppercase' }}>Dynamic Security Token Rotation Active</div>
               </div>
             ) : (
               <div style={{ padding: '20px', textAlign: 'center', color: '#4E3C36', fontSize: '11px', fontStyle: 'italic', maxWidth: '260px' }}>Your secure scan card code is offline. Flip the broadcast switch below to activate your presence.</div>
@@ -372,6 +371,7 @@ export default function OreetiSovereignEngine() {
 
       </div>
 
+      {/* 40% Ergonomic Interactive Thumb Zone Base */}
       <div style={{ background: 'linear-gradient(to top, #0A0605 80%, rgba(10, 6, 5, 0))', padding: '0 24px 30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box' }}>
         {showIntentModal && (
           <div style={{ backgroundColor: '#140D10', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '16px', padding: '16px' }}>
@@ -391,9 +391,23 @@ export default function OreetiSovereignEngine() {
         </div>
 
         <div style={{ height: '56px', backgroundColor: 'rgba(20, 13, 12, 0.85)', borderRadius: '20px', border: '1px solid rgba(245, 230, 211, 0.05)', display: 'flex', justifyContent: 'space-around', alignItems: 'center', backdropFilter: 'blur(30px)' }}>
-          <div onClick={() => { setActiveTab('room'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'room' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>ROOM</div>
-          <div onClick={() => { setActiveTab('vault'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'vault' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>VAULT</div>
-          <div onClick={() => { setActiveTab('presence'); setIsScanning(false); }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'presence' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>PRESENCE</div>
+          <div onClick={async () => {
+            if (html5QrCodeRef.current) { await html5QrCodeRef.current.stop().catch(() => {}); html5QrCodeRef.current = null; }
+            setActiveTab('room'); 
+            setIsScanning(false); 
+          }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'room' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>ROOM</div>
+          
+          <div onClick={async () => { 
+            if (html5QrCodeRef.current) { await html5QrCodeRef.current.stop().catch(() => {}); html5QrCodeRef.current = null; }
+            setActiveTab('vault'); 
+            setIsScanning(false); 
+          }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'vault' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>VAULT</div>
+          
+          <div onClick={async () => { 
+            if (html5QrCodeRef.current) { await html5QrCodeRef.current.stop().catch(() => {}); html5QrCodeRef.current = null; }
+            setActiveTab('presence'); 
+            setIsScanning(false); 
+          }} style={{ fontSize: '10px', letterSpacing: '1.5px', color: activeTab === 'presence' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '14px' }}>PRESENCE</div>
         </div>
       </div>
 
