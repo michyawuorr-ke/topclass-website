@@ -21,7 +21,7 @@ export default function OreetiAmbientEngine() {
   const [activeTab, setActiveTab] = useState<'room' | 'vault' | 'presence'>('presence');
   const [isVisible, setIsVisible] = useState(false);
   const [currentIntent, setCurrentUrlIntent] = useState('');
-  const [selectedStation, setSelectedStation] = useState('Main Bar');
+  const [selectedStation, setSelectedStation] = useState(''); // Changed to custom text input state
   const [sessionAnchor] = useState('Nairobi Garage');
   const [showIntentModal, setShowIntentModal] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -145,8 +145,7 @@ export default function OreetiAmbientEngine() {
             .eq('id', payload.new.connected_user_id)
             .single();
 
-          // Refined, compact premium copy for the sender
-          setAmbientMeetingGuide(`Handshake Established. Found near the ${targetNode?.current_station || 'Main Bar'}.`);
+          setAmbientMeetingGuide(`Handshake Established. Found near the ${targetNode?.current_station || 'designated spot'}.`);
         }
       })
       .subscribe();
@@ -194,8 +193,7 @@ export default function OreetiAmbientEngine() {
 
     const { data: theirNode } = await supabase.from('active_presence_nodes').select('current_station, name').eq('id', requesterId).single();
 
-    // Refined, compact premium copy for the receiver
-    setAmbientMeetingGuide(`Handshake Established. Found near the ${theirNode?.current_station || 'Main Bar'}.`);
+    setAmbientMeetingGuide(`Handshake Established. Found near the ${theirNode?.current_station || 'designated spot'}.`);
     syncDatabaseFeeds();
   };
 
@@ -205,7 +203,7 @@ export default function OreetiAmbientEngine() {
   };
 
   const confirmVisibility = async () => {
-    if (!currentIntent.trim()) return;
+    if (!currentIntent.trim() || !selectedStation.trim()) return;
     setShowIntentModal(false);
     setIsVisible(true);
 
@@ -326,18 +324,22 @@ export default function OreetiAmbientEngine() {
       <div style={{ background: 'linear-gradient(to top, #0A0605 80%, rgba(10, 6, 5, 0))', padding: '0 24px 30px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box' }}>
         
         {showIntentModal && (
-          <div style={{ backgroundColor: '#140D10', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '16px', padding: '18px' }}>
-            <div style={{ fontSize: '10px', color: '#8A7366', letterSpacing: '1px', marginBottom: '8px', textTransform: 'uppercase' }}>1. Current Focus (Visible to Room)</div>
-            <input type="text" placeholder="What are you looking for right now?" value={currentIntent} onChange={(e) => setCurrentUrlIntent(e.target.value)} style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '10px', color: '#F5E6D3', marginBottom: '14px', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} />
+          <div style={{ backgroundColor: '#140D10', border: '1px solid rgba(245, 230, 211, 0.1)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <input 
+              type="text" 
+              placeholder="Your Intent (e.g. Looking for UI Designer)" 
+              value={currentIntent} 
+              onChange={(e) => setCurrentUrlIntent(e.target.value)} 
+              style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '12px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
+            />
             
-            <div style={{ fontSize: '10px', color: '#8A7366', letterSpacing: '1px', marginBottom: '8px', textTransform: 'uppercase' }}>2. Private Landmark Station (Revealed after match)</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-              {['Main Bar', 'Stage Front', 'Lounge Area', 'Media Wall'].map((station) => (
-                <div key={station} onClick={() => setSelectedStation(station)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid', borderColor: selectedStation === station ? '#E6A15C' : 'rgba(245,230,211,0.05)', background: selectedStation === station ? 'rgba(230,161,92,0.08)' : '#0A0605', color: selectedStation === station ? '#E6A15C' : '#8A7366', fontSize: '11px', textAlign: 'center', cursor: 'pointer' }}>
-                  {station}
-                </div>
-              ))}
-            </div>
+            <input 
+              type="text" 
+              placeholder="Your Meetup Station (e.g. Main Bar Couch)" 
+              value={selectedStation} 
+              onChange={(e) => setSelectedStation(e.target.value)} 
+              style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(245, 230, 211, 0.08)', borderRadius: '8px', padding: '12px', color: '#F5E6D3', boxSizing: 'border-box', outline: 'none', fontSize: '13px' }} 
+            />
 
             <div style={{ display: 'flex', gap: '8px' }}>
               <div onClick={confirmVisibility} style={{ flex: 1, backgroundColor: '#E6A15C', color: '#140D0C', padding: '12px', borderRadius: '8px', textAlign: 'center', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>GO LIVE</div>
@@ -349,7 +351,7 @@ export default function OreetiAmbientEngine() {
         <div style={{ padding: '14px 18px', borderRadius: '16px', backgroundColor: 'rgba(20, 13, 12, 0.45)', border: '1px solid rgba(245, 230, 211, 0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: '12px', color: '#F5E6D3' }}>Visible Broadcast Mode</div>
-            {isVisible && <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '2px' }}>Stationed privately at {selectedStation}</div>}
+            {isVisible && <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '2px' }}>Stationed at {selectedStation}</div>}
           </div>
           <div onClick={() => { if (!isVisible) { setShowIntentModal(true); } else { setIsVisible(false); supabase.from('active_presence_nodes').delete().eq('id', profile.id); } }} style={{ width: '44px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
             <div style={{ width: '18px', height: '18px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '23px' : '3px', transition: 'left 0.2s' }} />
