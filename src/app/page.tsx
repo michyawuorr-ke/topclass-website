@@ -43,13 +43,14 @@ export default function OreetiAmbientEngine() {
   const [vaultUsers, setVaultUsers] = useState<any[]>([]);
   const [incomingHandshakes, setIncomingHandshakes] = useState<any[]>([]);
   const [incomingTier2Requests, setIncomingTier2Requests] = useState<any[]>([]);
-
-  // Spam mitigation tracking state (stores target user IDs that are currently locked)
   const [throttledConnections, setThrottledConnections] = useState<Record<string, boolean>>({});
 
   const [selectedVaultItem, setSelectedVaultItem] = useState<any | null>(null);
   const [reqPhoneCheckbox, setReqPhoneCheckbox] = useState(false);
   const [reqLinkedinCheckbox, setReqLinkedinCheckbox] = useState(false);
+  
+  // Sticky Note Tracking State
+  const [stickyNoteText, setStickyNoteText] = useState('');
 
   const [userId, setUserId] = useState<string>('');
   const [dynamicQrToken, setDynamicQrToken] = useState('');
@@ -86,7 +87,6 @@ export default function OreetiAmbientEngine() {
   const fetchActiveNodes = async () => {
     if (!userId) return;
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    
     const { data } = await supabase
       .from('active_presence_nodes')
       .select('id, name, title, domain, intent, current_station, phone, linkedin')
@@ -109,15 +109,32 @@ export default function OreetiAmbientEngine() {
   const syncDatabaseFeeds = async () => {
     if (!userId) return;
     
-    // 1. Fetch authenticated vault connections (No self listings)
+    // 1. Fetch vault connections
     const { data: vaultData } = await supabase
       .from('vault_connections')
       .select('*')
       .eq('user_id', userId)
       .not('connected_user_id', 'eq', userId);
-    if (vaultData) setVaultUsers(vaultData);
+    
+    if (vaultData) {
+      // 3-Minute Absolute Auto-Destruct Filter for unaccepted handshakes
+      const verifiedVaultAndLivePending = vaultData.filter(item => {
+        if (item.handshake_accepted) return true; // Keep permanently if accepted
+        
+        const createdTime = new Date(item.created_at || Date.now()).getTime();
+        const totalAgeInSeconds = (Date.now() - createdTime) / 1000;
+        
+        if (totalAgeInSeconds >= 180) {
+          // Asynchronously clear expired row from db
+          supabase.from('vault_connections').delete().eq('id', item.id).then(() => {});
+          return false; // Wipe from screen instantly
+        }
+        return true; // Keep in vault holding zone for now
+      });
+      setVaultUsers(verifiedVaultAndLivePending);
+    }
 
-    // 2. Fetch pending discovery handshakes
+    // 2. Fetch pending discovery incoming handshakes
     const { data: discoveryRequests } = await supabase
       .from('vault_connections')
       .select('*')
@@ -126,13 +143,13 @@ export default function OreetiAmbientEngine() {
       .eq('qr_scanned', false);
     
     if (discoveryRequests) {
-      // 3-Minute Self-Destruct Filter Engine
-      const activeValidRequests = discoveryRequests.filter(req => {
+      // 3-Second Overlay Timeout Filter
+      const activeOverlays = discoveryRequests.filter(req => {
         const createdTime = new Date(req.created_at || Date.now()).getTime();
-        const absoluteAgeInSeconds = (Date.now() - createdTime) / 1000;
-        return absoluteAgeInSeconds < 180; // Only retain if under 3 minutes old
+        const totalAgeInSeconds = (Date.now() - createdTime) / 1000;
+        return totalAgeInSeconds < 3; // True overlay expires precisely after 3 seconds
       });
-      setIncomingHandshakes(activeValidRequests);
+      setIncomingHandshakes(activeOverlays);
     }
 
     // 3. Fetch Tier-2 access requests
@@ -149,49 +166,44 @@ export default function OreetiAmbientEngine() {
     }
   };
 
-  // Immediate Real-Time Postgres Event Broker
+  // Live Sync Subscription Broker Loop
   useEffect(() => {
     if (!userId) return;
-
     syncDatabaseFeeds();
 
     const absolutePresenceSubscription = supabase
       .channel('realtime_aura_handshakes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'vault_connections' },
-        () => {
-          syncDatabaseFeeds();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vault_connections' }, () => {
+        syncDatabaseFeeds();
+      })
       .subscribe();
 
-    // Secondary countdown clock execution to clear expired requests in real-time
-    const lifespanCheckClock = setInterval(syncDatabaseFeeds, 5000);
+    // High frequency clock check to drive the 3-second and 3-minute strict countdown states
+    const preciseLifecycleClock = setInterval(syncDatabaseFeeds, 1000);
 
     return () => {
       supabase.removeChannel(absolutePresenceSubscription);
-      clearInterval(lifespanCheckClock);
+      clearInterval(preciseLifecycleClock);
     };
   }, [userId, selectedVaultItem]);
 
+  // Sync Note Content to Input on Selection
+  useEffect(() => {
+    if (selectedVaultItem) {
+      setStickyNoteText(selectedVaultItem.sticky_note || '');
+    }
+  }, [selectedVaultItem]);
+
   const triggerDiscoveryHandshake = async (targetUser: Networker) => {
     if (targetUser.id === userId) return;
-    
-    // Spam Prevention Check
-    if (throttledConnections[targetUser.id]) {
-      setSystemAlert("Connection throttle active. Please wait.");
-      setTimeout(() => setSystemAlert(null), 3000);
-      return;
-    }
+    if (throttledConnections[targetUser.id]) return;
 
-    // Activate structural anti-spam lock for this peer ID
     setThrottledConnections(prev => ({ ...prev, [targetUser.id]: true }));
     setRoomUsers(prev => prev.filter(u => u.id !== targetUser.id));
 
     await supabase.from('vault_connections').insert({ 
-      user_id: userId, 
-      connected_user_id: targetUser.id, 
+      user_id: targetUser.id, // Inserts to target's profile immediately
+      connected_user_id: userId, 
       name: fullName || 'Network Peer',
       title: role || 'Member',
       domain: domain || '',
@@ -202,13 +214,9 @@ export default function OreetiAmbientEngine() {
       current_station: selectedStation || 'Main Lounge'
     });
     
-    setSystemAlert(`Handshake requested with ${targetUser.name.split(' ')[0]}`);
+    setSystemAlert(`Handshake transmitted to ${targetUser.name.split(' ')[0]}`);
     setTimeout(() => setSystemAlert(null), 3000);
-
-    // Release spam lock after 10 seconds to allow retry if naturally necessary
-    setTimeout(() => {
-      setThrottledConnections(prev => ({ ...prev, [targetUser.id]: false }));
-    }, 10000);
+    setTimeout(() => setThrottledConnections(prev => ({ ...prev, [targetUser.id]: false })), 6000);
   };
 
   const acceptDiscoveryHandshake = async (request: any) => {
@@ -220,7 +228,7 @@ export default function OreetiAmbientEngine() {
 
     await supabase.from('vault_connections').insert({ 
       user_id: userId, 
-      connected_user_id: request.user_id, 
+      connected_user_id: request.connected_user_id, 
       name: request.name,
       title: request.title || 'Network Member',
       domain: request.domain || '',
@@ -231,9 +239,9 @@ export default function OreetiAmbientEngine() {
       current_station: request.current_station
     });
 
-    setSystemAlert("Handshake accepted mutually.");
+    setSystemAlert("Handshake logged permanently.");
     setTimeout(() => setSystemAlert(null), 3000);
-    setActiveTab('vault'); // Auto-focus Vault view when accepted
+    setActiveTab('vault');
   };
 
   const declineDiscoveryHandshake = async (reqId: number) => {
@@ -241,6 +249,20 @@ export default function OreetiAmbientEngine() {
     await supabase.from('vault_connections').delete().eq('id', reqId);
     setSystemAlert("Handshake bypassed.");
     setTimeout(() => setSystemAlert(null), 2000);
+  };
+
+  const saveStickyNote = async () => {
+    if (!selectedVaultItem) return;
+    
+    await supabase.from('vault_connections')
+      .update({ sticky_note: stickyNoteText })
+      .eq('id', selectedVaultItem.id);
+      
+    setSystemAlert("Sticky note attached.");
+    setTimeout(() => setSystemAlert(null), 2000);
+    
+    // Refresh item reference locally
+    setSelectedVaultItem(prev => prev ? { ...prev, sticky_note: stickyNoteText } : null);
   };
 
   const startQrScanner = async () => {
@@ -318,7 +340,6 @@ export default function OreetiAmbientEngine() {
 
   const submitTier2Request = async () => {
     if (!selectedVaultItem) return;
-    
     await supabase.from('vault_connections')
       .update({
         tier2_request_pending: true,
@@ -328,7 +349,7 @@ export default function OreetiAmbientEngine() {
       .eq('user_id', userId)
       .eq('connected_user_id', selectedVaultItem.connected_user_id);
 
-    setSystemAlert("Tier-2 Access request broadcasted.");
+    setSystemAlert("Tier-2 Access requested.");
     setTimeout(() => setSystemAlert(null), 3000);
     setShowTier2Options(false);
     setSelectedVaultItem(null);
@@ -336,7 +357,6 @@ export default function OreetiAmbientEngine() {
 
   const resolveTier2Request = async (request: any, approvePhone: boolean, approveLinkedin: boolean) => {
     setIncomingTier2Requests(prev => prev.filter(r => r.id !== request.id));
-
     await supabase.from('vault_connections')
       .update({
         tier2_request_pending: false,
@@ -346,7 +366,7 @@ export default function OreetiAmbientEngine() {
       .eq('user_id', request.user_id)
       .eq('connected_user_id', userId);
 
-    setSystemAlert("Sovereign permission resolved.");
+    setSystemAlert("Sovereign permissions saved.");
     setTimeout(() => setSystemAlert(null), 3000);
   };
 
@@ -361,7 +381,7 @@ export default function OreetiAmbientEngine() {
 
   const confirmVisibility = async () => {
     if (!fullName.trim() || !role.trim() || !domain.trim() || !currentIntent.trim() || !selectedStation.trim()) {
-      setSystemAlert("Complete fields prior to emitting.");
+      setSystemAlert("Complete core setup parameter metrics.");
       setTimeout(() => setSystemAlert(null), 3000);
       return;
     }
@@ -380,7 +400,6 @@ export default function OreetiAmbientEngine() {
       room_anchor: 'global_unfiltered_presence',
       last_seen: new Date().toISOString()
     });
-    
     setTimeout(fetchActiveNodes, 300);
   };
 
@@ -391,38 +410,29 @@ export default function OreetiAmbientEngine() {
       
       <Analytics />
 
-      {/* --- GLOBAL TAKEOVER OVERLAY SCREEN LAYER --- */}
+      {/* --- PHASE 1: 3-SECOND FULL SCREEN TAKEOVER OVERLAY --- */}
       {incomingHandshakes.length > 0 && (
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(10, 6, 5, 0.96)', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '24px', boxSizing: 'border-box', backdropFilter: 'blur(10px)' }}>
-          <div style={{ width: '100%', maxWidth: '360px', backgroundColor: '#140D0C', border: '1px solid #E6A15C', borderRadius: '28px', padding: '40px 32px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(10, 6, 5, 0.97)', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '24px', boxSizing: 'border-box', backdropFilter: 'blur(12px)' }}>
+          <div style={{ width: '100%', maxWidth: '360px', backgroundColor: '#140D0C', border: '1px solid #E6A15C', borderRadius: '28px', padding: '40px 32px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600' }}>INCOMING HANDSHAKE CONNECTION</span>
-              <span style={{ fontSize: '9px', color: '#8A7366', fontWeight: '500' }}>EXPIRING...</span>
+              <span style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600' }}>INCOMING REQUEST FLASH</span>
+              <span style={{ fontSize: '9px', color: '#8A7366', fontWeight: '500' }}>3s TIMEOUT</span>
             </div>
-            <div style={{ fontSize: '26px', color: '#FDFBF7', fontWeight: '300', letterSpacing: '-0.5px' }}>{incomingHandshakes[0].name}</div>
-            <div style={{ fontSize: '13px', color: '#E6A15C', marginBottom: '4px' }}>{incomingHandshakes[0].title}</div>
-            <div style={{ fontSize: '12px', color: '#8A7366', fontStyle: 'italic', marginBottom: '24px', lineHeight: '1.5' }}>
-              "Wants to sync profiles with you near {incomingHandshakes[0].current_station}."
-            </div>
+            <div style={{ fontSize: '26px', color: '#FDFBF7', fontWeight: '300' }}>{incomingHandshakes[0].name}</div>
+            <div style={{ fontSize: '13px', color: '#E6A15C', marginBottom: '20px' }}>{incomingHandshakes[0].title}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <button 
-                onClick={() => acceptDiscoveryHandshake(incomingHandshakes[0])} 
-                style={{ width: '100%', padding: '16px', background: '#E6A15C', color: '#0A0605', fontWeight: '600', border: 'none', borderRadius: '14px', cursor: 'pointer', fontSize: '12px', letterSpacing: '1px' }}
-              >
-                ACCEPT AND OPEN VAULT
+              <button onClick={() => acceptDiscoveryHandshake(incomingHandshakes[0])} style={{ width: '100%', padding: '16px', background: '#E6A15C', color: '#0A0605', fontWeight: '600', border: 'none', borderRadius: '14px', cursor: 'pointer', fontSize: '12px' }}>
+                ACCEPT NOW
               </button>
-              <button 
-                onClick={() => declineDiscoveryHandshake(incomingHandshakes[0].id)} 
-                style={{ width: '100%', padding: '14px', background: 'transparent', color: '#8A7366', border: '1px solid rgba(138, 115, 102, 0.2)', borderRadius: '14px', cursor: 'pointer', fontSize: '11px', letterSpacing: '0.5px' }}
-              >
-                BYPASS DISCOVERY
+              <button onClick={() => declineDiscoveryHandshake(incomingHandshakes[0].id)} style={{ width: '100%', padding: '14px', background: 'transparent', color: '#8A7366', border: '1px solid rgba(138, 115, 102, 0.2)', borderRadius: '14px', cursor: 'pointer', fontSize: '11px' }}>
+                BYPASS
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Persistent Toast Matrix Alerts */}
+      {/* Global Toast Alert Notifications */}
       <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999 }}>
         {systemAlert && (
           <div style={{ background: '#1C1210', border: '1px solid #E6A15C', borderRadius: '12px', padding: '14px 16px', color: '#F5E6D3', fontSize: '11px', textAlign: 'center' }}>
@@ -439,10 +449,7 @@ export default function OreetiAmbientEngine() {
               <div>
                 <div style={{ fontSize: '10px', color: '#8A7366', fontWeight: '600', letterSpacing: '2px' }}>ROOM ({roomUsers.length})</div>
               </div>
-              <div 
-                onClick={isScanning ? stopQrScanner : startQrScanner} 
-                style={{ padding: '8px 14px', borderRadius: '8px', backgroundColor: 'rgba(230,161,92,0.08)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', fontSize: '10px', fontWeight: '600', cursor: 'pointer' }}
-              >
+              <div onClick={isScanning ? stopQrScanner : startQrScanner} style={{ padding: '8px 14px', borderRadius: '8px', backgroundColor: 'rgba(230,161,92,0.08)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', fontSize: '10px', fontWeight: '600', cursor: 'pointer' }}>
                 {isScanning ? "CLOSE" : "SCAN"}
               </div>
             </div>
@@ -459,13 +466,8 @@ export default function OreetiAmbientEngine() {
                     <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '4px' }}>{user.title}</div>
                     <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '10px', fontStyle: 'italic' }}>"{user.intent}"</div>
                   </div>
-                  
-                  <button 
-                    disabled={throttledConnections[user.id]}
-                    onClick={() => triggerDiscoveryHandshake(user)} 
-                    style={{ padding: '12px 18px', backgroundColor: throttledConnections[user.id] ? 'rgba(138,115,102,0.05)' : 'rgba(230,161,92,0.06)', border: throttledConnections[user.id] ? '1px solid rgba(138,115,102,0.1)' : '1px solid rgba(230,161,92,0.2)', color: throttledConnections[user.id] ? '#8A7366' : '#E6A15C', borderRadius: '10px', fontSize: '10px', fontWeight: '600', cursor: throttledConnections[user.id] ? 'not-allowed' : 'pointer', letterSpacing: '1px' }}
-                  >
-                    {throttledConnections[user.id] ? "SENT" : "CONNECT"}
+                  <button onClick={() => triggerDiscoveryHandshake(user)} style={{ padding: '12px 18px', backgroundColor: 'rgba(230,161,92,0.06)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', borderRadius: '10px', fontSize: '10px', fontWeight: '600', letterSpacing: '1px', cursor: 'pointer' }}>
+                    CONNECT
                   </button>
                 </div>
               ))}
@@ -478,29 +480,55 @@ export default function OreetiAmbientEngine() {
             {selectedVaultItem ? (
               <div style={{ backgroundColor: '#110D0C', borderRadius: '24px', padding: '32px', border: '1px solid #E6A15C', display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
                 
-                <div 
-                  onClick={() => { setSelectedVaultItem(null); setShowTier2Options(false); }} 
-                  style={{ position: 'absolute', top: '24px', right: '24px', color: '#E6A15C', fontSize: '10px', fontWeight: '600', letterSpacing: '1px', cursor: 'pointer', padding: '6px 10px', background: 'rgba(230,161,92,0.05)', borderRadius: '6px', zIndex: 50 }}
-                >
+                <div onClick={() => { setSelectedVaultItem(null); setShowTier2Options(false); }} style={{ position: 'absolute', top: '24px', right: '24px', color: '#E6A15C', fontSize: '10px', fontWeight: '600', letterSpacing: '1px', cursor: 'pointer', padding: '6px 10px', background: 'rgba(230,161,92,0.05)', borderRadius: '6px', zIndex: 50 }}>
                   EXIT
                 </div>
                 
-                {!selectedVaultItem.qr_scanned ? (
+                {!selectedVaultItem.handshake_accepted ? (
+                  /* --- PHASE 2 HOLDING BLOCKS inside the Vault view --- */
+                  <>
+                    <div style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600', marginTop: '12px' }}>MISSED INCOMING HANDSHAKE (HOLDING AREA)</div>
+                    <div style={{ fontSize: '24px', color: '#FDFBF7', fontWeight: '300' }}>{selectedVaultItem.name}</div>
+                    <div style={{ fontSize: '14px', color: '#E6A15C' }}>{selectedVaultItem.title}</div>
+                    <div style={{ background: 'rgba(230,161,92,0.02)', padding: '16px', borderRadius: '12px', fontSize: '11px', color: '#8A7366', border: '1px dashed rgba(230,161,92,0.1)' }}>
+                      ⚠️ This handshake record will execute an automatic self-destruct cycle from your terminal system parameters in under 3 minutes unless explicitly resolved.
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                      <button onClick={() => acceptDiscoveryHandshake(selectedVaultItem)} style={{ flex: 1, padding: '14px', background: '#E6A15C', color: '#0A0605', border: 'none', borderRadius: '10px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>ACCEPT CONNECTION</button>
+                      <button onClick={() => declineDiscoveryHandshake(selectedVaultItem.id)} style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', color: '#8A7366', border: 'none', borderRadius: '10px', fontSize: '11px', cursor: 'pointer' }}>DISCARD</button>
+                    </div>
+                  </>
+                ) : !selectedVaultItem.qr_scanned ? (
                   <>
                     <div style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '2px', fontWeight: '600', marginTop: '12px' }}>HANDSHAKE MUTUAL (PENDING PHYSICAL SCAN)</div>
                     <div style={{ fontSize: '24px', color: '#FDFBF7', fontWeight: '300' }}>{selectedVaultItem.name}</div>
                     <div style={{ fontSize: '14px', color: '#E6A15C' }}>{selectedVaultItem.title}</div>
                     <div style={{ background: 'rgba(230,161,92,0.02)', padding: '16px', borderRadius: '12px', fontSize: '11px', color: '#8A7366', border: '1px dashed rgba(230,161,92,0.1)' }}>
-                      🔒 Full Identity domain mapping hidden until a physical QR code scanner validation matching is executed.
+                      🔒 Full structural identity coordinates remain locked until verified by physical QR match.
                     </div>
                   </>
                 ) : (
+                  /* SECURED TIER-1 PROFILE WINDOW WITH STICKY NOTE MATRIX */
                   <>
-                    <div style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600', marginTop: '12px' }}>TIER-1 CHANNELS VERIFIED</div>
+                    <div style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600', marginTop: '12px' }}>TIER-1 ARCHIVE MUTUAL SECURED</div>
                     <div style={{ fontSize: '24px', color: '#FDFBF7', fontWeight: '300' }}>{selectedVaultItem.name}</div>
                     <div style={{ fontSize: '14px', color: '#E6A15C' }}>{selectedVaultItem.title}</div>
                     <div style={{ fontSize: '13px', color: '#D9C3B0' }}><strong>Domain:</strong> {selectedVaultItem.domain || 'Independent'}</div>
                     
+                    {/* --- MUSEUM-GRADE STICKY NOTE DESIGN ENGINE --- */}
+                    <div style={{ marginTop: '12px', background: '#16110F', border: '1px solid rgba(230,161,92,0.15)', borderRadius: '14px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <span style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '1px', fontWeight: '600' }}>📌 CONTEXT STICKY NOTE</span>
+                      <textarea 
+                        value={stickyNoteText} 
+                        onChange={(e) => setStickyNoteText(e.target.value)}
+                        placeholder="Write down details to remember this peer by..." 
+                        style={{ width: '100%', height: '64px', background: 'transparent', border: 'none', outline: 'none', color: '#F5E6D3', fontSize: '12px', fontFamily: 'inherit', resize: 'none', padding: 0, lineHeight: '1.5' }}
+                      />
+                      <button onClick={saveStickyNote} style={{ alignSelf: 'flex-end', padding: '6px 12px', background: 'rgba(230,161,92,0.08)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', borderRadius: '8px', fontSize: '10px', fontWeight: '600', cursor: 'pointer' }}>
+                        SAVE NOTE
+                      </button>
+                    </div>
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
                       {selectedVaultItem.shared_phone && selectedVaultItem.phone && (
                         <div style={{ fontSize: '13px', color: '#F5E6D3', background: '#1C1210', padding: '12px', borderRadius: '8px' }}>📞 {selectedVaultItem.phone}</div>
@@ -512,30 +540,23 @@ export default function OreetiAmbientEngine() {
 
                     <div style={{ borderTop: '1px solid rgba(230,161,92,0.1)', marginTop: '12px', paddingTop: '16px' }}>
                       {!showTier2Options ? (
-                        <button 
-                          onClick={() => setShowTier2Options(true)}
-                          style={{ width: '100%', padding: '14px', background: 'rgba(230,161,92,0.06)', border: '1px solid rgba(230,161,92,0.3)', color: '#E6A15C', borderRadius: '12px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', letterSpacing: '0.5px' }}
-                        >
+                        <button onClick={() => setShowTier2Options(true)} style={{ width: '100%', padding: '14px', background: 'rgba(230,161,92,0.06)', border: '1px solid rgba(230,161,92,0.3)', color: '#E6A15C', borderRadius: '12px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>
                           REQUEST CHANNEL ACCESS
                         </button>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                          <div style={{ fontSize: '11px', color: '#8A7366' }}>Select the explicit communication routes to request:</div>
+                          <div style={{ fontSize: '11px', color: '#8A7366' }}>Select routes to pull request:</div>
                           <div style={{ display: 'flex', gap: '16px' }}>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#F5E6D3', cursor: 'pointer' }}>
                               <input type="checkbox" checked={reqPhoneCheckbox} onChange={(e) => setReqPhoneCheckbox(e.target.checked)} style={{ accentColor: '#E6A15C' }} /> Phone Line
                             </label>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#F5E6D3', cursor: 'pointer' }}>
-                              <input type="checkbox" checked={reqLinkedinCheckbox} onChange={(e) => setReqLinkedinCheckbox(e.target.checked)} style={{ accentColor: '#E6A15C' }} /> LinkedIn Handle
+                              <input type="checkbox" checked={reqLinkedinCheckbox} onChange={(e) => setReqLinkedinCheckbox(e.target.checked)} style={{ accentColor: '#E6A15C' }} /> LinkedIn
                             </label>
                           </div>
                           <div style={{ display: 'flex', gap: '10px' }}>
-                            <button onClick={submitTier2Request} style={{ flex: 1, padding: '12px', background: '#E6A15C', color: '#0A0605', border: 'none', borderRadius: '10px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>
-                              TRANSMIT
-                            </button>
-                            <button onClick={() => setShowTier2Options(false)} style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', color: '#8A7366', border: 'none', borderRadius: '10px', fontSize: '11px', cursor: 'pointer' }}>
-                              CANCEL
-                            </button>
+                            <button onClick={submitTier2Request} style={{ flex: 1, padding: '12px', background: '#E6A15C', color: '#0A0605', border: 'none', borderRadius: '10px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>TRANSMIT</button>
+                            <button onClick={() => setShowTier2Options(false)} style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', color: '#8A7366', border: 'none', borderRadius: '10px', fontSize: '11px', cursor: 'pointer' }}>CANCEL</button>
                           </div>
                         </div>
                       )}
@@ -545,18 +566,21 @@ export default function OreetiAmbientEngine() {
               </div>
             ) : (
               <div>
-                <div style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '2px', color: '#E6A15C', marginBottom: '16px' }}>SECURED VAULT CONNECTIONS ({vaultUsers.length})</div>
+                <div style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '2px', color: '#E6A15C', marginBottom: '16px' }}>VAULT ARCHIVE MATRIX ({vaultUsers.length})</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {vaultUsers.map((user, i) => (
-                    <div key={i} onClick={() => setSelectedVaultItem(user)} style={{ backgroundColor: '#110D0C', borderRadius: '20px', padding: '24px', border: '1px solid rgba(230,161,92,0.02)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div key={i} onClick={() => { setSelectedVaultItem(user); }} style={{ backgroundColor: '#110D0C', borderRadius: '20px', padding: '24px', border: !user.handshake_accepted ? '1px dashed rgba(230,161,92,0.4)' : '1px solid rgba(230,161,92,0.02)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <div style={{ fontSize: '16px', fontWeight: '400', color: '#FDFBF7' }}>
-                          {user.qr_scanned ? user.name : `${user.name} (Awaiting QR Scan)`}
+                          {user.qr_scanned ? user.name : !user.handshake_accepted ? `${user.name} (Incoming Request)` : `${user.name} (Awaiting QR)`}
                         </div>
                         <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '4px' }}>{user.title}</div>
+                        {user.sticky_note && (
+                          <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>📝 {user.sticky_note}</div>
+                        )}
                       </div>
-                      <div style={{ fontSize: '10px', color: '#8A7366', border: '1px solid rgba(230,161,92,0.1)', padding: '4px 8px', borderRadius: '6px' }}>
-                        {user.qr_scanned ? "VIEW PROFILE" : "PENDING SCAN"}
+                      <div style={{ fontSize: '10px', color: !user.handshake_accepted ? '#E6A15C' : '#8A7366', border: '1px solid rgba(230,161,92,0.1)', padding: '4px 8px', borderRadius: '6px' }}>
+                        {!user.handshake_accepted ? "RESOLVE REQ" : user.qr_scanned ? "OPEN CARD" : "PENDING SCAN"}
                       </div>
                     </div>
                   ))}
@@ -578,21 +602,14 @@ export default function OreetiAmbientEngine() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <button onClick={() => resolveTier2Request(req, req.requested_phone, req.requested_linkedin)} style={{ width: '100%', padding: '12px', background: '#E6A15C', color: '#0A0605', border: 'none', borderRadius: '8px', fontSize: '11px', fontWeight: '600' }}>SHARE REQUESTED CHANNELS</button>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {req.requested_phone && <button onClick={() => resolveTier2Request(req, true, false)} style={{ flex: 1, padding: '10px', background: 'rgba(230,161,92,0.08)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', borderRadius: '8px', fontSize: '11px' }}>ONLY PHONE</button>}
-                    {req.requested_linkedin && <button onClick={() => resolveTier2Request(req, false, true)} style={{ flex: 1, padding: '10px', background: 'rgba(230,161,92,0.08)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', borderRadius: '8px', fontSize: '11px' }}>ONLY LINKEDIN</button>}
-                  </div>
-                  <button onClick={() => resolveTier2Request(req, false, false)} style={{ width: '100%', padding: '10px', background: 'transparent', color: '#8A7366', border: 'none', fontSize: '11px', cursor: 'pointer' }}>DECLINE ENTIRE REQ</button>
+                  <button onClick={() => resolveTier2Request(req, false, false)} style={{ width: '100%', padding: '10px', background: 'transparent', color: '#8A7366', border: 'none', fontSize: '11px', cursor: 'pointer' }}>DECLINE REQ</button>
                 </div>
               </div>
             ))}
 
             <div style={{ width: '100%', maxWidth: '350px', backgroundColor: '#110D0C', borderRadius: '28px', padding: '40px 32px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', position: 'relative', border: '1px solid rgba(230,161,92,0.02)' }}>
               
-              <div 
-                onClick={() => setIsEditing(!isEditing)} 
-                style={{ position: 'absolute', top: '32px', right: '32px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid rgba(230,161,92,0.1)', background: 'rgba(20,13,12,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10 }}
-              >
+              <div onClick={() => setIsEditing(!isEditing)} style={{ position: 'absolute', top: '32px', right: '32px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid rgba(230,161,92,0.1)', background: 'rgba(20,13,12,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E6A15C" strokeWidth="1.75">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
@@ -604,23 +621,19 @@ export default function OreetiAmbientEngine() {
                     <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1.5px' }}>FULL NAME</span>
                     <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#FDFBF7', outline: 'none', fontSize: '18px' }} />
                   </div>
-                  
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1.5px' }}>PROFESSIONAL TITLE</span>
                     <input type="text" value={role} onChange={(e) => setRole(e.target.value)} style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#E6A15C', outline: 'none', fontSize: '14px' }} />
                   </div>
-
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1.5px' }}>OPERATIONAL DOMAIN</span>
                     <input type="text" value={domain} onChange={(e) => setDomain(e.target.value)} style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#D9C3B0', outline: 'none', fontSize: '13px' }} />
                   </div>
-
                   <div style={{ borderTop: '1px solid rgba(230,161,92,0.05)', paddingTop: '12px' }}>
                     <div onClick={() => setShowSecureInputs(!showSecureInputs)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', padding: '4px 0' }}>
                       <span style={{ fontSize: '10px', color: '#E6A15C', letterSpacing: '1px', fontWeight: '500' }}>🔒 SOVEREIGN IDENTITY SECURE HANDLES</span>
                       <span style={{ color: '#E6A15C', fontSize: '10px' }}>{showSecureInputs ? '▲' : '▼'}</span>
                     </div>
-
                     {showSecureInputs && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '14px', background: 'rgba(0,0,0,0.15)', padding: '14px', borderRadius: '12px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -634,7 +647,6 @@ export default function OreetiAmbientEngine() {
                       </div>
                     )}
                   </div>
-
                   <button onClick={saveProfileLocal} style={{ width: '100%', padding: '12px', background: 'rgba(230,161,92,0.06)', border: '1px solid rgba(230,161,92,0.25)', borderRadius: '10px', color: '#E6A15C', fontSize: '10px', fontWeight: '600', cursor: 'pointer' }}>SAVE PROFILE CONFIGS</button>
                 </div>
               ) : (
