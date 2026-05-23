@@ -49,7 +49,6 @@ export default function OreetiAmbientEngine() {
   const [reqPhoneCheckbox, setReqPhoneCheckbox] = useState(false);
   const [reqLinkedinCheckbox, setReqLinkedinCheckbox] = useState(false);
   
-  // Sticky Note Tracking State
   const [stickyNoteText, setStickyNoteText] = useState('');
 
   const [userId, setUserId] = useState<string>('');
@@ -109,7 +108,6 @@ export default function OreetiAmbientEngine() {
   const syncDatabaseFeeds = async () => {
     if (!userId) return;
     
-    // 1. Fetch vault connections
     const { data: vaultData } = await supabase
       .from('vault_connections')
       .select('*')
@@ -117,24 +115,21 @@ export default function OreetiAmbientEngine() {
       .not('connected_user_id', 'eq', userId);
     
     if (vaultData) {
-      // 3-Minute Absolute Auto-Destruct Filter for unaccepted handshakes
       const verifiedVaultAndLivePending = vaultData.filter(item => {
-        if (item.handshake_accepted) return true; // Keep permanently if accepted
+        if (item.handshake_accepted) return true;
         
         const createdTime = new Date(item.created_at || Date.now()).getTime();
         const totalAgeInSeconds = (Date.now() - createdTime) / 1000;
         
         if (totalAgeInSeconds >= 180) {
-          // Asynchronously clear expired row from db
           supabase.from('vault_connections').delete().eq('id', item.id).then(() => {});
-          return false; // Wipe from screen instantly
+          return false;
         }
-        return true; // Keep in vault holding zone for now
+        return true;
       });
       setVaultUsers(verifiedVaultAndLivePending);
     }
 
-    // 2. Fetch pending discovery incoming handshakes
     const { data: discoveryRequests } = await supabase
       .from('vault_connections')
       .select('*')
@@ -143,16 +138,14 @@ export default function OreetiAmbientEngine() {
       .eq('qr_scanned', false);
     
     if (discoveryRequests) {
-      // 3-Second Overlay Timeout Filter
       const activeOverlays = discoveryRequests.filter(req => {
         const createdTime = new Date(req.created_at || Date.now()).getTime();
         const totalAgeInSeconds = (Date.now() - createdTime) / 1000;
-        return totalAgeInSeconds < 3; // True overlay expires precisely after 3 seconds
+        return totalAgeInSeconds < 3;
       });
       setIncomingHandshakes(activeOverlays);
     }
 
-    // 3. Fetch Tier-2 access requests
     const { data: t2Requests } = await supabase
       .from('vault_connections')
       .select('*')
@@ -166,7 +159,6 @@ export default function OreetiAmbientEngine() {
     }
   };
 
-  // Live Sync Subscription Broker Loop
   useEffect(() => {
     if (!userId) return;
     syncDatabaseFeeds();
@@ -178,7 +170,6 @@ export default function OreetiAmbientEngine() {
       })
       .subscribe();
 
-    // High frequency clock check to drive the 3-second and 3-minute strict countdown states
     const preciseLifecycleClock = setInterval(syncDatabaseFeeds, 1000);
 
     return () => {
@@ -187,7 +178,6 @@ export default function OreetiAmbientEngine() {
     };
   }, [userId, selectedVaultItem]);
 
-  // Sync Note Content to Input on Selection
   useEffect(() => {
     if (selectedVaultItem) {
       setStickyNoteText(selectedVaultItem.sticky_note || '');
@@ -202,7 +192,7 @@ export default function OreetiAmbientEngine() {
     setRoomUsers(prev => prev.filter(u => u.id !== targetUser.id));
 
     await supabase.from('vault_connections').insert({ 
-      user_id: targetUser.id, // Inserts to target's profile immediately
+      user_id: targetUser.id,
       connected_user_id: userId, 
       name: fullName || 'Network Peer',
       title: role || 'Member',
@@ -261,8 +251,8 @@ export default function OreetiAmbientEngine() {
     setSystemAlert("Sticky note attached.");
     setTimeout(() => setSystemAlert(null), 2000);
     
-    // Refresh item reference locally
-    setSelectedVaultItem(prev => prev ? { ...prev, sticky_note: stickyNoteText } : null);
+    // Fixed type implementation for parameters
+    setSelectedVaultItem((prev: any) => prev ? { ...prev, sticky_note: stickyNoteText } : null);
   };
 
   const startQrScanner = async () => {
@@ -410,7 +400,6 @@ export default function OreetiAmbientEngine() {
       
       <Analytics />
 
-      {/* --- PHASE 1: 3-SECOND FULL SCREEN TAKEOVER OVERLAY --- */}
       {incomingHandshakes.length > 0 && (
         <div style={{ position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(10, 6, 5, 0.97)', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '24px', boxSizing: 'border-box', backdropFilter: 'blur(12px)' }}>
           <div style={{ width: '100%', maxWidth: '360px', backgroundColor: '#140D0C', border: '1px solid #E6A15C', borderRadius: '28px', padding: '40px 32px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -432,7 +421,6 @@ export default function OreetiAmbientEngine() {
         </div>
       )}
 
-      {/* Global Toast Alert Notifications */}
       <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999 }}>
         {systemAlert && (
           <div style={{ background: '#1C1210', border: '1px solid #E6A15C', borderRadius: '12px', padding: '14px 16px', color: '#F5E6D3', fontSize: '11px', textAlign: 'center' }}>
@@ -485,7 +473,6 @@ export default function OreetiAmbientEngine() {
                 </div>
                 
                 {!selectedVaultItem.handshake_accepted ? (
-                  /* --- PHASE 2 HOLDING BLOCKS inside the Vault view --- */
                   <>
                     <div style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600', marginTop: '12px' }}>MISSED INCOMING HANDSHAKE (HOLDING AREA)</div>
                     <div style={{ fontSize: '24px', color: '#FDFBF7', fontWeight: '300' }}>{selectedVaultItem.name}</div>
@@ -508,14 +495,12 @@ export default function OreetiAmbientEngine() {
                     </div>
                   </>
                 ) : (
-                  /* SECURED TIER-1 PROFILE WINDOW WITH STICKY NOTE MATRIX */
                   <>
                     <div style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600', marginTop: '12px' }}>TIER-1 ARCHIVE MUTUAL SECURED</div>
                     <div style={{ fontSize: '24px', color: '#FDFBF7', fontWeight: '300' }}>{selectedVaultItem.name}</div>
                     <div style={{ fontSize: '14px', color: '#E6A15C' }}>{selectedVaultItem.title}</div>
                     <div style={{ fontSize: '13px', color: '#D9C3B0' }}><strong>Domain:</strong> {selectedVaultItem.domain || 'Independent'}</div>
                     
-                    {/* --- MUSEUM-GRADE STICKY NOTE DESIGN ENGINE --- */}
                     <div style={{ marginTop: '12px', background: '#16110F', border: '1px solid rgba(230,161,92,0.15)', borderRadius: '14px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       <span style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '1px', fontWeight: '600' }}>📌 CONTEXT STICKY NOTE</span>
                       <textarea 
