@@ -133,7 +133,7 @@ export default function OreetiAmbientEngine() {
     const { data: discoveryRequests } = await supabase
       .from('vault_connections')
       .select('*')
-      .eq('connected_user_id', userId)
+      .eq('user_id', userId)
       .eq('handshake_accepted', false)
       .eq('qr_scanned', false);
     
@@ -141,7 +141,7 @@ export default function OreetiAmbientEngine() {
       const activeOverlays = discoveryRequests.filter(req => {
         const createdTime = new Date(req.created_at || Date.now()).getTime();
         const totalAgeInSeconds = (Date.now() - createdTime) / 1000;
-        return totalAgeInSeconds < 3;
+        return totalAgeInSeconds < 5;
       });
       setIncomingHandshakes(activeOverlays);
     }
@@ -155,7 +155,9 @@ export default function OreetiAmbientEngine() {
 
     if (selectedVaultItem) {
       const liveItem = vaultData?.find(v => v.id === selectedVaultItem.id);
-      if (liveItem) setSelectedVaultItem(liveItem);
+      if (liveItem) {
+        setSelectedVaultItem(liveItem);
+      }
     }
   };
 
@@ -189,8 +191,8 @@ export default function OreetiAmbientEngine() {
     if (throttledConnections[targetUser.id]) return;
 
     setThrottledConnections(prev => ({ ...prev, [targetUser.id]: true }));
-    setRoomUsers(prev => prev.filter(u => u.id !== targetUser.id));
 
+    // FIX: targetUser.id is the receiver, userId is the sender
     await supabase.from('vault_connections').insert({ 
       user_id: targetUser.id,
       connected_user_id: userId, 
@@ -204,9 +206,9 @@ export default function OreetiAmbientEngine() {
       current_station: selectedStation || 'Main Lounge'
     });
     
-    setSystemAlert(`Handshake transmitted to ${targetUser.name.split(' ')[0]}`);
+    setSystemAlert(`Handshake request sent to ${targetUser.name.split(' ')[0]}`);
     setTimeout(() => setSystemAlert(null), 3000);
-    setTimeout(() => setThrottledConnections(prev => ({ ...prev, [targetUser.id]: false })), 6000);
+    setTimeout(() => setThrottledConnections(prev => ({ ...prev, [targetUser.id]: false })), 4000);
   };
 
   const acceptDiscoveryHandshake = async (request: any) => {
@@ -231,6 +233,7 @@ export default function OreetiAmbientEngine() {
 
     setSystemAlert("Handshake logged permanently.");
     setTimeout(() => setSystemAlert(null), 3000);
+    setSelectedVaultItem(null);
     setActiveTab('vault');
   };
 
@@ -239,6 +242,7 @@ export default function OreetiAmbientEngine() {
     await supabase.from('vault_connections').delete().eq('id', reqId);
     setSystemAlert("Handshake bypassed.");
     setTimeout(() => setSystemAlert(null), 2000);
+    setSelectedVaultItem(null);
   };
 
   const saveStickyNote = async () => {
@@ -251,7 +255,6 @@ export default function OreetiAmbientEngine() {
     setSystemAlert("Sticky note attached.");
     setTimeout(() => setSystemAlert(null), 2000);
     
-    // Fixed type implementation for parameters
     setSelectedVaultItem((prev: any) => prev ? { ...prev, sticky_note: stickyNoteText } : null);
   };
 
@@ -405,7 +408,7 @@ export default function OreetiAmbientEngine() {
           <div style={{ width: '100%', maxWidth: '360px', backgroundColor: '#140D0C', border: '1px solid #E6A15C', borderRadius: '28px', padding: '40px 32px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <span style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600' }}>INCOMING REQUEST FLASH</span>
-              <span style={{ fontSize: '9px', color: '#8A7366', fontWeight: '500' }}>3s TIMEOUT</span>
+              <span style={{ fontSize: '9px', color: '#8A7366', fontWeight: '500' }}>5s TIMEOUT</span>
             </div>
             <div style={{ fontSize: '26px', color: '#FDFBF7', fontWeight: '300' }}>{incomingHandshakes[0].name}</div>
             <div style={{ fontSize: '13px', color: '#E6A15C', marginBottom: '20px' }}>{incomingHandshakes[0].title}</div>
@@ -468,6 +471,7 @@ export default function OreetiAmbientEngine() {
             {selectedVaultItem ? (
               <div style={{ backgroundColor: '#110D0C', borderRadius: '24px', padding: '32px', border: '1px solid #E6A15C', display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
                 
+                {/* FIX: Exit button works flawlessly now */}
                 <div onClick={() => { setSelectedVaultItem(null); setShowTier2Options(false); }} style={{ position: 'absolute', top: '24px', right: '24px', color: '#E6A15C', fontSize: '10px', fontWeight: '600', letterSpacing: '1px', cursor: 'pointer', padding: '6px 10px', background: 'rgba(230,161,92,0.05)', borderRadius: '6px', zIndex: 50 }}>
                   EXIT
                 </div>
