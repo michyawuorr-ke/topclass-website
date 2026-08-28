@@ -9,61 +9,104 @@ const SUPABASE_URL = 'https://ikhkpdfgjqqbvkyvfgrw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlraGtwZGZnanFxYnZreXZmZ3J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjE1NzMsImV4cCI6MjA5NDg5NzU3M30.RWBlgX-xH9aYTNBjwrRNeeogpoIvkSRXh08gIDSjb4U';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-interface Networker {
+type Lens = 'foryou' | 'people' | 'opportunities' | 'resources' | 'activities';
+type NavTab = 'discover' | 'connections' | 'journey';
+
+interface Presence {
   id: string;
-  name: string;
-  title: string;
-  domain: string;
-  intent: string;
-  current_station?: string;
-  phone?: string;
-  linkedin?: string;
+  profile_id: string;
+  space_id: string;
+  zone_id: string | null;
+  intent: string | null;
+  need: string | null;
+  offer: string | null;
+  station: string | null;
+  last_seen: string;
+  profiles?: { name: string; title: string; domain: string };
+}
+
+interface Opportunity {
+  id: string; title: string; type: string; provider: string;
+  eligibility: string; location: string; deadline: string; conditions: string; next_steps: string;
+}
+interface ResourceItem {
+  id: string; name: string; owner: string; availability: string; conditions: string;
+}
+interface ActivityItem {
+  id: string; title: string; host: string; start_time: string; end_time: string; purpose: string;
 }
 
 export default function ToruokSpaceApp() {
-  const [activeTab, setActiveTab] = useState<'room' | 'vault' | 'presence'>('presence');
-  const [isVisible, setIsVisible] = useState(false);
-  const [isEditing, setIsEditing] = useState(false); 
-  const [showSecureInputs, setShowSecureInputs] = useState(false);
-  const [showTier2Options, setShowTier2Options] = useState(false);
-  
+  // ---- Space context ----
+  const [spaceId, setSpaceId] = useState<string>('');
+  const [spaceInput, setSpaceInput] = useState('');
+  const [spaceName, setSpaceName] = useState('');
+
+  // ---- Identity ----
+  const [profileId, setProfileId] = useState<string>('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('');
   const [domain, setDomain] = useState('');
   const [userPhone, setUserPhone] = useState('');
   const [userLinkedin, setUserLinkedin] = useState('');
-  
-  const [currentIntent, setCurrentUrlIntent] = useState('');
+
+  // ---- Nav / lens state ----
+  const [activeNav, setActiveNav] = useState<NavTab>('discover');
+  const [activeLens, setActiveLens] = useState<Lens>('foryou');
+  const [showProfilePanel, setShowProfilePanel] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+
+  // ---- Presence / intent ----
+  const [isVisible, setIsVisible] = useState(false);
+  const [need, setNeed] = useState('');
+  const [offer, setOffer] = useState('');
   const [selectedStation, setSelectedStation] = useState('');
   const [showIntentModal, setShowIntentModal] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  
-  const [systemAlert, setSystemAlert] = useState<string | null>(null);
-  const [roomUsers, setRoomUsers] = useState<Networker[]>([]);
-  const [vaultUsers, setVaultUsers] = useState<any[]>([]);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const [dynamicQrToken, setDynamicQrToken] = useState('');
+
+  // ---- Discover data ----
+  const [presentPeople, setPresentPeople] = useState<Presence[]>([]);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [resources, setResources] = useState<ResourceItem[]>([]);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+
+  // ---- Connections ----
+  const [connections, setConnections] = useState<any[]>([]);
   const [incomingHandshakes, setIncomingHandshakes] = useState<any[]>([]);
   const [incomingTier2Requests, setIncomingTier2Requests] = useState<any[]>([]);
-  const [throttledConnections, setThrottledConnections] = useState<Record<string, boolean>>({});
-
-  const [selectedVaultItem, setSelectedVaultItem] = useState<any | null>(null);
+  const [throttled, setThrottled] = useState<Record<string, boolean>>({});
+  const [selectedConnection, setSelectedConnection] = useState<any | null>(null);
   const [reqPhoneCheckbox, setReqPhoneCheckbox] = useState(false);
   const [reqLinkedinCheckbox, setReqLinkedinCheckbox] = useState(false);
-  
   const [stickyNoteText, setStickyNoteText] = useState('');
+  const [showTier2Options, setShowTier2Options] = useState(false);
 
-  const [userId, setUserId] = useState<string>('');
-  const [dynamicQrToken, setDynamicQrToken] = useState('');
-  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const [systemAlert, setSystemAlert] = useState<string | null>(null);
+  const alert = (msg: string) => { setSystemAlert(msg); setTimeout(() => setSystemAlert(null), 3000); };
 
+  // ============================================================
+  // Bootstrap: space from URL, identity from localStorage
+  // ============================================================
   useEffect(() => {
-    const existingId = localStorage.getItem('presence_peer_id');
-    if (existingId) {
-      setUserId(existingId);
+    const params = new URLSearchParams(window.location.search);
+    const s = params.get('space');
+    if (s) {
+      setSpaceId(s);
+      localStorage.setItem('toruok_space_id', s);
     } else {
-      const newId = `node-${Math.random().toString(36).substring(2, 15)}`;
-      localStorage.setItem('presence_peer_id', newId);
-      setUserId(newId);
+      const saved = localStorage.getItem('toruok_space_id');
+      if (saved) setSpaceId(saved);
     }
+
+    let pid = localStorage.getItem('toruok_profile_id');
+    if (!pid) {
+      pid = crypto.randomUUID();
+      localStorage.setItem('toruok_profile_id', pid);
+    }
+    setProfileId(pid);
+
     setFullName(localStorage.getItem('p_name') || '');
     setRole(localStorage.getItem('p_role') || '');
     setDomain(localStorage.getItem('p_domain') || '');
@@ -72,295 +115,141 @@ export default function ToruokSpaceApp() {
   }, []);
 
   useEffect(() => {
-    if (!fullName || !userId) return;
-    const generateSecureToken = () => {
-      setDynamicQrToken(`${userId}||${Date.now()}||${Math.random().toString(36).substring(2, 7)}`);
-    };
-    generateSecureToken();
-    const tokenRotationInterval = setInterval(generateSecureToken, 45000);
-    return () => clearInterval(tokenRotationInterval);
-  }, [userId, fullName]);
+    if (!spaceId) return;
+    supabase.from('spaces').select('name').eq('id', spaceId).single()
+      .then(({ data }) => { if (data) setSpaceName(data.name); });
+  }, [spaceId]);
 
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(dynamicQrToken)}&color=e6a15c&bgcolor=0e0908`;
+  const confirmSpaceCode = () => {
+    if (!spaceInput.trim()) return;
+    setSpaceId(spaceInput.trim());
+    localStorage.setItem('toruok_space_id', spaceInput.trim());
+  };
 
-  const fetchActiveNodes = async () => {
-    if (!userId) return;
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  // ============================================================
+  // Discover data fetches — scoped to the current space
+  // ============================================================
+  const fetchPresentPeople = async () => {
+    if (!spaceId) return;
     const { data } = await supabase
-      .from('active_presence_nodes')
-      .select('id, name, title, domain, intent, current_station, phone, linkedin')
-      .gt('last_seen', oneHourAgo)
-      .not('id', 'eq', userId);
+      .from('presence')
+      .select('*, profiles(name, title, domain)')
+      .eq('space_id', spaceId);
+    if (data) setPresentPeople(data as any);
+  };
 
-    if (data) setRoomUsers(data as Networker[]);
+  const fetchOpportunities = async () => {
+    if (!spaceId) return;
+    const { data } = await supabase.from('opportunities').select('*').eq('space_id', spaceId);
+    if (data) setOpportunities(data as any);
+  };
+  const fetchResources = async () => {
+    if (!spaceId) return;
+    const { data } = await supabase.from('resources').select('*').eq('space_id', spaceId);
+    if (data) setResources(data as any);
+  };
+  const fetchActivities = async () => {
+    if (!spaceId) return;
+    const { data } = await supabase.from('activities').select('*').eq('space_id', spaceId);
+    if (data) setActivities(data as any);
   };
 
   useEffect(() => {
-    if (!isVisible || !userId) {
-      setRoomUsers([]);
-      return;
-    }
-    fetchActiveNodes();
-    const intervalSync = setInterval(fetchActiveNodes, 4000);
-    return () => clearInterval(intervalSync);
-  }, [isVisible, userId]);
+    if (!spaceId) return;
+    fetchPresentPeople();
+    fetchOpportunities();
+    fetchResources();
+    fetchActivities();
+    const interval = setInterval(fetchPresentPeople, 5000);
+    return () => clearInterval(interval);
+  }, [spaceId]);
 
-  const syncDatabaseFeeds = async () => {
-    if (!userId) return;
-    
-    const { data: vaultData } = await supabase
-      .from('vault_connections')
+  // ============================================================
+  // Connections sync (handshakes, tier-2 requests)
+  // ============================================================
+  const syncConnections = async () => {
+    if (!profileId) return;
+
+    const { data: myConnections } = await supabase
+      .from('connections')
       .select('*')
-      .eq('user_id', userId)
-      .not('connected_user_id', 'eq', userId);
-    
-    if (vaultData) {
-      const verifiedVaultAndLivePending = vaultData.filter(item => {
+      .eq('profile_id', profileId);
+
+    if (myConnections) {
+      const live = myConnections.filter(item => {
         if (item.handshake_accepted) return true;
-        
-        const createdTime = new Date(item.created_at || Date.now()).getTime();
-        const totalAgeInSeconds = (Date.now() - createdTime) / 1000;
-        
-        if (totalAgeInSeconds >= 180) {
-          supabase.from('vault_connections').delete().eq('id', item.id).then(() => {});
+        const age = (Date.now() - new Date(item.created_at || Date.now()).getTime()) / 1000;
+        if (age >= 180) {
+          supabase.from('connections').delete().eq('id', item.id).then(() => {});
           return false;
         }
         return true;
       });
-      setVaultUsers(verifiedVaultAndLivePending);
+      setConnections(live);
     }
 
-    const { data: discoveryRequests } = await supabase
-      .from('vault_connections')
+    const { data: incoming } = await supabase
+      .from('connections')
       .select('*')
-      .eq('user_id', userId)
+      .eq('profile_id', profileId)
       .eq('handshake_accepted', false)
       .eq('qr_scanned', false);
-    
-    if (discoveryRequests) {
-      const activeOverlays = discoveryRequests.filter(req => {
-        const createdTime = new Date(req.created_at || Date.now()).getTime();
-        const totalAgeInSeconds = (Date.now() - createdTime) / 1000;
-        return totalAgeInSeconds < 5;
-      });
-      setIncomingHandshakes(activeOverlays);
+    if (incoming) {
+      setIncomingHandshakes(incoming.filter(r => {
+        const age = (Date.now() - new Date(r.created_at || Date.now()).getTime()) / 1000;
+        return age < 5;
+      }));
     }
 
-    const { data: t2Requests } = await supabase
-      .from('vault_connections')
+    const { data: t2 } = await supabase
+      .from('connections')
       .select('*')
-      .eq('connected_user_id', userId)
+      .eq('connected_profile_id', profileId)
       .eq('tier2_request_pending', true);
-    if (t2Requests) setIncomingTier2Requests(t2Requests);
-
-    if (selectedVaultItem) {
-      const liveItem = vaultData?.find(v => v.id === selectedVaultItem.id);
-      if (liveItem) {
-        setSelectedVaultItem(liveItem);
-      }
-    }
+    if (t2) setIncomingTier2Requests(t2);
   };
 
   useEffect(() => {
-    if (!userId) return;
-    syncDatabaseFeeds();
-
-    const absolutePresenceSubscription = supabase
-      .channel('realtime_aura_handshakes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'vault_connections' }, () => {
-        syncDatabaseFeeds();
-      })
+    if (!profileId) return;
+    syncConnections();
+    const channel = supabase
+      .channel('realtime_connections')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'connections' }, syncConnections)
       .subscribe();
-
-    const preciseLifecycleClock = setInterval(syncDatabaseFeeds, 1000);
-
-    return () => {
-      supabase.removeChannel(absolutePresenceSubscription);
-      clearInterval(preciseLifecycleClock);
-    };
-  }, [userId, selectedVaultItem]);
+    const clock = setInterval(syncConnections, 1000);
+    return () => { supabase.removeChannel(channel); clearInterval(clock); };
+  }, [profileId]);
 
   useEffect(() => {
-    if (selectedVaultItem) {
-      setStickyNoteText(selectedVaultItem.sticky_note || '');
+    if (selectedConnection) setStickyNoteText(selectedConnection.sticky_note || '');
+  }, [selectedConnection]);
+
+  // ============================================================
+  // Presence / intent
+  // ============================================================
+  const confirmVisibility = async () => {
+    if (!fullName.trim() || !role.trim() || !need.trim() || !selectedStation.trim() || !spaceId) {
+      alert('Complete your name, role, need, and station.');
+      return;
     }
-  }, [selectedVaultItem]);
+    setShowIntentModal(false);
+    setIsVisible(true);
 
-  const triggerDiscoveryHandshake = async (targetUser: Networker) => {
-    if (targetUser.id === userId) return;
-    if (throttledConnections[targetUser.id]) return;
-
-    setThrottledConnections(prev => ({ ...prev, [targetUser.id]: true }));
-
-    // FIX: targetUser.id is the receiver, userId is the sender
-    await supabase.from('vault_connections').insert({ 
-      user_id: targetUser.id,
-      connected_user_id: userId, 
-      name: fullName || 'Network Peer',
-      title: role || 'Member',
-      domain: domain || '',
-      phone: userPhone || '',
-      linkedin: userLinkedin || '',
-      handshake_accepted: false,
-      qr_scanned: false,
-      current_station: selectedStation || 'Main Lounge'
-    });
-    
-    setSystemAlert(`Handshake request sent to ${targetUser.name.split(' ')[0]}`);
-    setTimeout(() => setSystemAlert(null), 3000);
-    setTimeout(() => setThrottledConnections(prev => ({ ...prev, [targetUser.id]: false })), 4000);
-  };
-
-  const acceptDiscoveryHandshake = async (request: any) => {
-    setIncomingHandshakes(prev => prev.filter(h => h.id !== request.id));
-
-    await supabase.from('vault_connections')
-      .update({ handshake_accepted: true })
-      .eq('id', request.id);
-
-    await supabase.from('vault_connections').insert({ 
-      user_id: userId, 
-      connected_user_id: request.connected_user_id, 
-      name: request.name,
-      title: request.title || 'Network Member',
-      domain: request.domain || '',
-      phone: request.phone || '',
-      linkedin: request.linkedin || '',
-      handshake_accepted: true,
-      qr_scanned: false,
-      current_station: request.current_station
+    await supabase.from('profiles').upsert({
+      id: profileId, name: fullName, title: role, domain, phone: userPhone, linkedin: userLinkedin,
     });
 
-    setSystemAlert("Handshake logged permanently.");
-    setTimeout(() => setSystemAlert(null), 3000);
-    setSelectedVaultItem(null);
-    setActiveTab('vault');
-  };
+    await supabase.from('presence').upsert({
+      id: profileId, // reuse profile id as presence id for simplicity — one active presence per profile
+      profile_id: profileId,
+      space_id: spaceId,
+      intent: `${need}${offer ? ' / offering: ' + offer : ''}`,
+      need, offer,
+      station: selectedStation,
+      last_seen: new Date().toISOString(),
+    });
 
-  const declineDiscoveryHandshake = async (reqId: number) => {
-    setIncomingHandshakes(prev => prev.filter(h => h.id !== reqId));
-    await supabase.from('vault_connections').delete().eq('id', reqId);
-    setSystemAlert("Handshake bypassed.");
-    setTimeout(() => setSystemAlert(null), 2000);
-    setSelectedVaultItem(null);
-  };
-
-  const saveStickyNote = async () => {
-    if (!selectedVaultItem) return;
-    
-    await supabase.from('vault_connections')
-      .update({ sticky_note: stickyNoteText })
-      .eq('id', selectedVaultItem.id);
-      
-    setSystemAlert("Sticky note attached.");
-    setTimeout(() => setSystemAlert(null), 2000);
-    
-    setSelectedVaultItem((prev: any) => prev ? { ...prev, sticky_note: stickyNoteText } : null);
-  };
-
-  const startQrScanner = async () => {
-    setIsScanning(true);
-    setTimeout(async () => {
-      try {
-        const scanner = new Html5Qrcode("room-scanner-viewport");
-        html5QrCodeRef.current = scanner;
-        await scanner.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 220, height: 220 } },
-          async (decodedText) => {
-            const parts = decodedText.split('||');
-            if (parts.length >= 1) {
-              const scannedId = parts[0];
-              
-              if (html5QrCodeRef.current) {
-                await html5QrCodeRef.current.stop().catch(()=>{});
-                html5QrCodeRef.current = null;
-              }
-              setIsScanning(false);
-
-              const { data: targetNode } = await supabase
-                .from('active_presence_nodes')
-                .select('*')
-                .eq('id', scannedId)
-                .single();
-
-              if (targetNode) {
-                await supabase.from('vault_connections').upsert({
-                  user_id: userId,
-                  connected_user_id: targetNode.id,
-                  name: targetNode.name,
-                  title: targetNode.title,
-                  domain: targetNode.domain,
-                  phone: targetNode.phone,
-                  linkedin: targetNode.linkedin,
-                  handshake_accepted: true,
-                  qr_scanned: true
-                });
-
-                await supabase.from('vault_connections').upsert({
-                  user_id: targetNode.id,
-                  connected_user_id: userId,
-                  name: fullName || 'Network Peer',
-                  title: role || 'Member',
-                  domain: domain || '',
-                  phone: userPhone || '',
-                  linkedin: userLinkedin || '',
-                  handshake_accepted: true,
-                  qr_scanned: true
-                });
-
-                setSystemAlert("Mutual Physical Connection Established.");
-                setTimeout(() => setSystemAlert(null), 3000);
-                setActiveTab('vault');
-              }
-            }
-          },
-          () => {}
-        );
-      } catch (err) {
-        setIsScanning(false);
-      }
-    }, 150);
-  };
-
-  const stopQrScanner = async () => {
-    if (html5QrCodeRef.current) {
-      await html5QrCodeRef.current.stop().catch(()=>{});
-      html5QrCodeRef.current = null;
-    }
-    setIsScanning(false);
-  };
-
-  const submitTier2Request = async () => {
-    if (!selectedVaultItem) return;
-    await supabase.from('vault_connections')
-      .update({
-        tier2_request_pending: true,
-        requested_phone: reqPhoneCheckbox,
-        requested_linkedin: reqLinkedinCheckbox
-      })
-      .eq('user_id', userId)
-      .eq('connected_user_id', selectedVaultItem.connected_user_id);
-
-    setSystemAlert("Tier-2 Access requested.");
-    setTimeout(() => setSystemAlert(null), 3000);
-    setShowTier2Options(false);
-    setSelectedVaultItem(null);
-  };
-
-  const resolveTier2Request = async (request: any, approvePhone: boolean, approveLinkedin: boolean) => {
-    setIncomingTier2Requests(prev => prev.filter(r => r.id !== request.id));
-    await supabase.from('vault_connections')
-      .update({
-        tier2_request_pending: false,
-        shared_phone: approvePhone,
-        shared_linkedin: approveLinkedin
-      })
-      .eq('user_id', request.user_id)
-      .eq('connected_user_id', userId);
-
-    setSystemAlert("Sovereign permissions saved.");
-    setTimeout(() => setSystemAlert(null), 3000);
+    setTimeout(fetchPresentPeople, 300);
   };
 
   const saveProfileLocal = () => {
@@ -369,330 +258,366 @@ export default function ToruokSpaceApp() {
     localStorage.setItem('p_domain', domain);
     localStorage.setItem('p_phone', userPhone);
     localStorage.setItem('p_link', userLinkedin);
-    setIsEditing(false);
+    setIsEditingProfile(false);
   };
 
-  const confirmVisibility = async () => {
-    if (!fullName.trim() || !role.trim() || !domain.trim() || !currentIntent.trim() || !selectedStation.trim()) {
-      setSystemAlert("Complete core setup parameter metrics.");
-      setTimeout(() => setSystemAlert(null), 3000);
-      return;
-    }
-    setShowIntentModal(false);
-    setIsVisible(true);
+  // ============================================================
+  // Handshake / QR / tier-2 (ported logic, new table/column names)
+  // ============================================================
+  const triggerHandshake = async (target: Presence) => {
+    if (target.profile_id === profileId || throttled[target.profile_id]) return;
+    setThrottled(prev => ({ ...prev, [target.profile_id]: true }));
 
-    await supabase.from('active_presence_nodes').upsert({
-      id: userId,
-      name: fullName,
-      title: role,
-      domain: domain,
-      intent: currentIntent,
-      current_station: selectedStation,
-      phone: userPhone,
-      linkedin: userLinkedin,
-      room_anchor: 'global_unfiltered_presence',
-      last_seen: new Date().toISOString()
+    await supabase.from('connections').insert({
+      profile_id: target.profile_id,
+      connected_profile_id: profileId,
+      space_id: spaceId,
+      handshake_accepted: false,
+      qr_scanned: false,
     });
-    setTimeout(fetchActiveNodes, 300);
+
+    alert(`Handshake sent to ${target.profiles?.name?.split(' ')[0] || 'them'}`);
+    setTimeout(() => setThrottled(prev => ({ ...prev, [target.profile_id]: false })), 4000);
   };
 
-  const isCardEmpty = !fullName.trim() && !role.trim() && !domain.trim();
+  const acceptHandshake = async (request: any) => {
+    setIncomingHandshakes(prev => prev.filter(h => h.id !== request.id));
+    await supabase.from('connections').update({ handshake_accepted: true }).eq('id', request.id);
+    await supabase.from('connections').insert({
+      profile_id: profileId,
+      connected_profile_id: request.connected_profile_id,
+      space_id: spaceId,
+      handshake_accepted: true,
+      qr_scanned: false,
+    });
+    alert('Connection made.');
+    setSelectedConnection(null);
+    setActiveNav('connections');
+  };
+
+  const declineHandshake = async (id: string) => {
+    setIncomingHandshakes(prev => prev.filter(h => h.id !== id));
+    await supabase.from('connections').delete().eq('id', id);
+    setSelectedConnection(null);
+  };
+
+  const saveStickyNote = async () => {
+    if (!selectedConnection) return;
+    await supabase.from('connections').update({ sticky_note: stickyNoteText }).eq('id', selectedConnection.id);
+    setSelectedConnection((prev: any) => prev ? { ...prev, sticky_note: stickyNoteText } : null);
+    alert('Note saved.');
+  };
+
+  const startQrScanner = async () => {
+    setIsScanning(true);
+    setTimeout(async () => {
+      try {
+        const scanner = new Html5Qrcode('scanner-viewport');
+        html5QrCodeRef.current = scanner;
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          async (decodedText) => {
+            const scannedProfileId = decodedText.split('||')[0];
+            if (html5QrCodeRef.current) { await html5QrCodeRef.current.stop().catch(() => {}); html5QrCodeRef.current = null; }
+            setIsScanning(false);
+
+            const { data: targetProfile } = await supabase.from('profiles').select('*').eq('id', scannedProfileId).single();
+            if (targetProfile) {
+              await supabase.from('connections').upsert({
+                profile_id: profileId, connected_profile_id: targetProfile.id, space_id: spaceId,
+                handshake_accepted: true, qr_scanned: true,
+              });
+              await supabase.from('connections').upsert({
+                profile_id: targetProfile.id, connected_profile_id: profileId, space_id: spaceId,
+                handshake_accepted: true, qr_scanned: true,
+              });
+              alert('Connected.');
+              setActiveNav('connections');
+            }
+          },
+          () => {}
+        );
+      } catch { setIsScanning(false); }
+    }, 150);
+  };
+  const stopQrScanner = async () => {
+    if (html5QrCodeRef.current) { await html5QrCodeRef.current.stop().catch(() => {}); html5QrCodeRef.current = null; }
+    setIsScanning(false);
+  };
+
+  const submitTier2Request = async () => {
+    if (!selectedConnection) return;
+    await supabase.from('connections').update({
+      tier2_request_pending: true, requested_phone: reqPhoneCheckbox, requested_linkedin: reqLinkedinCheckbox,
+    }).eq('profile_id', profileId).eq('connected_profile_id', selectedConnection.connected_profile_id);
+    alert('Access requested.');
+    setShowTier2Options(false);
+    setSelectedConnection(null);
+  };
+
+  const resolveTier2Request = async (request: any, approvePhone: boolean, approveLinkedin: boolean) => {
+    setIncomingTier2Requests(prev => prev.filter(r => r.id !== request.id));
+    await supabase.from('connections').update({
+      tier2_request_pending: false, shared_phone: approvePhone, shared_linkedin: approveLinkedin,
+    }).eq('profile_id', request.profile_id).eq('connected_profile_id', profileId);
+    alert('Permissions saved.');
+  };
+
+  // ============================================================
+  // Render
+  // ============================================================
+  if (!spaceId) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#1C1C2E', color: '#F5EFE3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: 'sans-serif' }}>
+        <h1 style={{ fontSize: 22, marginBottom: 8 }}>Toruok Space</h1>
+        <p style={{ opacity: 0.7, marginBottom: 20, textAlign: 'center' }}>Enter or scan the space code for where you are</p>
+        <input value={spaceInput} onChange={e => setSpaceInput(e.target.value)} placeholder="Space ID"
+          style={{ padding: 12, borderRadius: 8, width: '100%', maxWidth: 320, marginBottom: 12, border: 'none' }} />
+        <button onClick={confirmSpaceCode} style={{ padding: '12px 24px', borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>
+          Enter Space
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ margin: 0, padding: 0, width: '100vw', height: '100vh', backgroundColor: '#0A0605', color: '#FDFBF7', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', boxSizing: 'border-box', position: 'relative' }}>
-      
-      <Analytics />
+    <div style={{ minHeight: '100vh', background: '#1C1C2E', color: '#F5EFE3', fontFamily: 'sans-serif', paddingBottom: 70 }}>
+      {systemAlert && (
+        <div style={{ position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)', background: '#E26D34', color: '#fff', padding: '8px 16px', borderRadius: 8, zIndex: 50 }}>
+          {systemAlert}
+        </div>
+      )}
 
-      {incomingHandshakes.length > 0 && (
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(10, 6, 5, 0.97)', zIndex: 99999, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '24px', boxSizing: 'border-box', backdropFilter: 'blur(12px)' }}>
-          <div style={{ width: '100%', maxWidth: '360px', backgroundColor: '#140D0C', border: '1px solid #E6A15C', borderRadius: '28px', padding: '40px 32px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600' }}>INCOMING REQUEST FLASH</span>
-              <span style={{ fontSize: '9px', color: '#8A7366', fontWeight: '500' }}>5s TIMEOUT</span>
+      {/* Top context header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}>
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.6 }}>You are in</div>
+          <div style={{ fontSize: 16, fontWeight: 600 }}>{spaceName || 'this space'}</div>
+        </div>
+        <button onClick={() => setShowProfilePanel(true)}
+          style={{ width: 40, height: 40, borderRadius: 20, background: '#D4AF37', color: '#1C1C2E', border: 'none', fontWeight: 700 }}>
+          {fullName ? fullName[0].toUpperCase() : '?'}
+        </button>
+      </div>
+
+      {/* DISCOVER */}
+      {activeNav === 'discover' && (
+        <div style={{ padding: '0 16px' }}>
+          {!isVisible && (
+            <button onClick={() => setShowIntentModal(true)}
+              style={{ width: '100%', padding: 14, borderRadius: 10, background: '#E26D34', color: '#fff', border: 'none', marginBottom: 16 }}>
+              Become visible in this space
+            </button>
+          )}
+
+          {/* Lens switcher */}
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 16 }}>
+            {(['foryou', 'people', 'opportunities', 'resources', 'activities'] as Lens[]).map(lens => (
+              <button key={lens} onClick={() => setActiveLens(lens)}
+                style={{
+                  padding: '8px 14px', borderRadius: 20, whiteSpace: 'nowrap', border: 'none',
+                  background: activeLens === lens ? '#D4AF37' : 'rgba(255,255,255,0.08)',
+                  color: activeLens === lens ? '#1C1C2E' : '#F5EFE3',
+                }}>
+                {lens === 'foryou' ? 'For You' : lens.charAt(0).toUpperCase() + lens.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {(activeLens === 'foryou' || activeLens === 'people') && (
+            <div>
+              {presentPeople.filter(p => p.profile_id !== profileId).length === 0 && (
+                <p style={{ opacity: 0.5 }}>No one else visible here yet.</p>
+              )}
+              {presentPeople.filter(p => p.profile_id !== profileId).map(p => (
+                <div key={p.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                  <div style={{ fontWeight: 600 }}>{p.profiles?.name || 'Someone'}</div>
+                  <div style={{ fontSize: 13, opacity: 0.7 }}>{p.profiles?.title} · {p.profiles?.domain}</div>
+                  {p.need && <div style={{ fontSize: 13, marginTop: 6 }}>Needs: {p.need}</div>}
+                  {p.offer && <div style={{ fontSize: 13 }}>Offers: {p.offer}</div>}
+                  <button onClick={() => triggerHandshake(p)} disabled={throttled[p.profile_id]}
+                    style={{ marginTop: 10, padding: '6px 14px', borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>
+                    Connect
+                  </button>
+                </div>
+              ))}
             </div>
-            <div style={{ fontSize: '26px', color: '#FDFBF7', fontWeight: '300' }}>{incomingHandshakes[0].name}</div>
-            <div style={{ fontSize: '13px', color: '#E6A15C', marginBottom: '20px' }}>{incomingHandshakes[0].title}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <button onClick={() => acceptDiscoveryHandshake(incomingHandshakes[0])} style={{ width: '100%', padding: '16px', background: '#E6A15C', color: '#0A0605', fontWeight: '600', border: 'none', borderRadius: '14px', cursor: 'pointer', fontSize: '12px' }}>
-                ACCEPT NOW
-              </button>
-              <button onClick={() => declineDiscoveryHandshake(incomingHandshakes[0].id)} style={{ width: '100%', padding: '14px', background: 'transparent', color: '#8A7366', border: '1px solid rgba(138, 115, 102, 0.2)', borderRadius: '14px', cursor: 'pointer', fontSize: '11px' }}>
-                BYPASS
-              </button>
+          )}
+
+          {activeLens === 'opportunities' && (
+            <div>
+              {opportunities.length === 0 && <p style={{ opacity: 0.5 }}>No opportunities posted yet.</p>}
+              {opportunities.map(o => (
+                <div key={o.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                  <div style={{ fontWeight: 600 }}>{o.title}</div>
+                  <div style={{ fontSize: 13, opacity: 0.7 }}>{o.type} · {o.provider}</div>
+                  {o.eligibility && <div style={{ fontSize: 13, marginTop: 6 }}>Eligibility: {o.eligibility}</div>}
+                  {o.deadline && <div style={{ fontSize: 13 }}>Deadline: {new Date(o.deadline).toLocaleDateString()}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeLens === 'resources' && (
+            <div>
+              {resources.length === 0 && <p style={{ opacity: 0.5 }}>No resources listed yet.</p>}
+              {resources.map(r => (
+                <div key={r.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                  <div style={{ fontWeight: 600 }}>{r.name}</div>
+                  <div style={{ fontSize: 13, opacity: 0.7 }}>{r.owner}</div>
+                  {r.availability && <div style={{ fontSize: 13, marginTop: 6 }}>Availability: {r.availability}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeLens === 'activities' && (
+            <div>
+              {activities.length === 0 && <p style={{ opacity: 0.5 }}>No activities scheduled yet.</p>}
+              {activities.map(a => (
+                <div key={a.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                  <div style={{ fontWeight: 600 }}>{a.title}</div>
+                  <div style={{ fontSize: 13, opacity: 0.7 }}>{a.host}</div>
+                  {a.start_time && <div style={{ fontSize: 13, marginTop: 6 }}>{new Date(a.start_time).toLocaleString()}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CONNECTIONS */}
+      {activeNav === 'connections' && (
+        <div style={{ padding: '0 16px' }}>
+          <button onClick={startQrScanner} style={{ width: '100%', padding: 12, borderRadius: 10, background: 'rgba(255,255,255,0.08)', color: '#F5EFE3', border: 'none', marginBottom: 16 }}>
+            Scan to connect
+          </button>
+
+          {incomingHandshakes.map(req => (
+            <div key={req.id} style={{ background: '#D4AF37', color: '#1C1C2E', borderRadius: 12, padding: 14, marginBottom: 10 }}>
+              <div>New handshake request</div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button onClick={() => acceptHandshake(req)} style={{ padding: '6px 14px', borderRadius: 8, border: 'none' }}>Accept</button>
+                <button onClick={() => declineHandshake(req.id)} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'transparent' }}>Decline</button>
+              </div>
+            </div>
+          ))}
+
+          {incomingTier2Requests.map(req => (
+            <div key={req.id} style={{ background: 'rgba(212,175,55,0.2)', borderRadius: 12, padding: 14, marginBottom: 10 }}>
+              <div>Contact info requested</div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button onClick={() => resolveTier2Request(req, true, true)} style={{ padding: '6px 14px', borderRadius: 8, border: 'none' }}>Share all</button>
+                <button onClick={() => resolveTier2Request(req, false, false)} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'transparent' }}>Decline</button>
+              </div>
+            </div>
+          ))}
+
+          {connections.filter(c => c.handshake_accepted).length === 0 && (
+            <p style={{ opacity: 0.5 }}>No connections yet.</p>
+          )}
+          {connections.filter(c => c.handshake_accepted).map(c => (
+            <div key={c.id} onClick={() => setSelectedConnection(c)}
+              style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginBottom: 10, cursor: 'pointer' }}>
+              <div style={{ fontWeight: 600 }}>{c.connected_profile_id}</div>
+              {c.sticky_note && <div style={{ fontSize: 13, opacity: 0.7, marginTop: 4 }}>{c.sticky_note}</div>}
+            </div>
+          ))}
+
+          {isScanning && (
+            <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 60, display: 'flex', flexDirection: 'column' }}>
+              <div id="scanner-viewport" style={{ flex: 1 }} />
+              <button onClick={stopQrScanner} style={{ padding: 16, background: '#E26D34', color: '#fff', border: 'none' }}>Cancel</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MY JOURNEY */}
+      {activeNav === 'journey' && (
+        <div style={{ padding: '0 16px' }}>
+          <h2 style={{ fontSize: 16, marginBottom: 12 }}>My Journey</h2>
+          <p style={{ opacity: 0.5, fontSize: 13, marginBottom: 16 }}>A timeline of spaces, connections, and opportunities — this grows as you use Toruok Space.</p>
+          {connections.length === 0 ? (
+            <p style={{ opacity: 0.5 }}>Nothing yet — connect with someone to start your journey.</p>
+          ) : (
+            connections.map(c => (
+              <div key={c.id} style={{ fontSize: 13, opacity: 0.8, marginBottom: 8 }}>
+                Connected with {c.connected_profile_id} {c.created_at ? `· ${new Date(c.created_at).toLocaleDateString()}` : ''}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Bottom nav */}
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, display: 'flex', background: '#15151F', padding: '10px 0' }}>
+        {(['discover', 'connections', 'journey'] as NavTab[]).map(tab => (
+          <button key={tab} onClick={() => setActiveNav(tab)}
+            style={{ flex: 1, background: 'none', border: 'none', color: activeNav === tab ? '#E26D34' : '#888', fontWeight: activeNav === tab ? 700 : 400 }}>
+            {tab === 'discover' ? 'Discover' : tab === 'connections' ? 'Connections' : 'My Journey'}
+          </button>
+        ))}
+      </div>
+
+      {/* Intent modal (Need / Offer) */}
+      {showIntentModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 40 }}>
+          <div style={{ background: '#1C1C2E', width: '100%', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 }}>
+            <h3 style={{ marginBottom: 12 }}>Become visible</h3>
+            <input placeholder="Full name" value={fullName} onChange={e => setFullName(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
+            <input placeholder="Role" value={role} onChange={e => setRole(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
+            <input placeholder="Domain / field" value={domain} onChange={e => setDomain(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
+            <input placeholder="What are you looking for? (need)" value={need} onChange={e => setNeed(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
+            <input placeholder="What can you offer? (optional)" value={offer} onChange={e => setOffer(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
+            <input placeholder="Where are you in the space?" value={selectedStation} onChange={e => setSelectedStation(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 12, borderRadius: 8, border: 'none' }} />
+            <button onClick={confirmVisibility} style={{ width: '100%', padding: 12, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>Confirm</button>
+          </div>
+        </div>
+      )}
+
+      {/* Profile panel */}
+      {showProfilePanel && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 40 }}>
+          <div style={{ background: '#1C1C2E', width: '100%', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 }}>
+            <h3 style={{ marginBottom: 12 }}>Profile</h3>
+            <input placeholder="Full name" value={fullName} onChange={e => setFullName(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
+            <input placeholder="Role" value={role} onChange={e => setRole(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
+            <input placeholder="Domain" value={domain} onChange={e => setDomain(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
+            <input placeholder="Phone" value={userPhone} onChange={e => setUserPhone(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
+            <input placeholder="LinkedIn" value={userLinkedin} onChange={e => setUserLinkedin(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 12, borderRadius: 8, border: 'none' }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={saveProfileLocal} style={{ flex: 1, padding: 12, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>Save</button>
+              <button onClick={() => setShowProfilePanel(false)} style={{ flex: 1, padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: '#F5EFE3', border: 'none' }}>Close</button>
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ position: 'fixed', top: '24px', left: '24px', right: '24px', zIndex: 9999 }}>
-        {systemAlert && (
-          <div style={{ background: '#1C1210', border: '1px solid #E6A15C', borderRadius: '12px', padding: '14px 16px', color: '#F5E6D3', fontSize: '11px', textAlign: 'center' }}>
-            {systemAlert}
-          </div>
-        )}
-      </div>
-
-      <div style={{ flex: 1, padding: '48px 28px 0 28px', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '40px' }}>
-        
-        {activeTab === 'room' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontSize: '10px', color: '#8A7366', fontWeight: '600', letterSpacing: '2px' }}>ROOM ({roomUsers.length})</div>
-              </div>
-              <div onClick={isScanning ? stopQrScanner : startQrScanner} style={{ padding: '8px 14px', borderRadius: '8px', backgroundColor: 'rgba(230,161,92,0.08)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', fontSize: '10px', fontWeight: '600', cursor: 'pointer' }}>
-                {isScanning ? "CLOSE" : "SCAN"}
-              </div>
-            </div>
-
-            {isScanning && (
-              <div id="room-scanner-viewport" style={{ width: '100%', maxWidth: '350px', aspectRatio: '1/1', borderRadius: '24px', overflow: 'hidden', backgroundColor: '#110D0C', border: '1px solid rgba(230,161,92,0.1)', alignSelf: 'center' }} />
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {roomUsers.map(user => (
-                <div key={user.id} style={{ padding: '24px', borderRadius: '20px', backgroundColor: '#110D0C', border: '1px solid rgba(230,161,92,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box' }}>
-                  <div style={{ flex: 1, paddingRight: '12px' }}>
-                    <div style={{ fontSize: '17px', fontWeight: '400', color: '#F5E6D3' }}>{user.name}</div>
-                    <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '4px' }}>{user.title}</div>
-                    <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '10px', fontStyle: 'italic' }}>"{user.intent}"</div>
-                  </div>
-                  <button onClick={() => triggerDiscoveryHandshake(user)} style={{ padding: '12px 18px', backgroundColor: 'rgba(230,161,92,0.06)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', borderRadius: '10px', fontSize: '10px', fontWeight: '600', letterSpacing: '1px', cursor: 'pointer' }}>
-                    CONNECT
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'vault' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {selectedVaultItem ? (
-              <div style={{ backgroundColor: '#110D0C', borderRadius: '24px', padding: '32px', border: '1px solid #E6A15C', display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
-                
-                {/* FIX: Exit button works flawlessly now */}
-                <div onClick={() => { setSelectedVaultItem(null); setShowTier2Options(false); }} style={{ position: 'absolute', top: '24px', right: '24px', color: '#E6A15C', fontSize: '10px', fontWeight: '600', letterSpacing: '1px', cursor: 'pointer', padding: '6px 10px', background: 'rgba(230,161,92,0.05)', borderRadius: '6px', zIndex: 50 }}>
-                  EXIT
-                </div>
-                
-                {!selectedVaultItem.handshake_accepted ? (
-                  <>
-                    <div style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600', marginTop: '12px' }}>MISSED INCOMING HANDSHAKE (HOLDING AREA)</div>
-                    <div style={{ fontSize: '24px', color: '#FDFBF7', fontWeight: '300' }}>{selectedVaultItem.name}</div>
-                    <div style={{ fontSize: '14px', color: '#E6A15C' }}>{selectedVaultItem.title}</div>
-                    <div style={{ background: 'rgba(230,161,92,0.02)', padding: '16px', borderRadius: '12px', fontSize: '11px', color: '#8A7366', border: '1px dashed rgba(230,161,92,0.1)' }}>
-                      ⚠️ This handshake record will execute an automatic self-destruct cycle from your terminal system parameters in under 3 minutes unless explicitly resolved.
-                    </div>
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                      <button onClick={() => acceptDiscoveryHandshake(selectedVaultItem)} style={{ flex: 1, padding: '14px', background: '#E6A15C', color: '#0A0605', border: 'none', borderRadius: '10px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>ACCEPT CONNECTION</button>
-                      <button onClick={() => declineDiscoveryHandshake(selectedVaultItem.id)} style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', color: '#8A7366', border: 'none', borderRadius: '10px', fontSize: '11px', cursor: 'pointer' }}>DISCARD</button>
-                    </div>
-                  </>
-                ) : !selectedVaultItem.qr_scanned ? (
-                  <>
-                    <div style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '2px', fontWeight: '600', marginTop: '12px' }}>HANDSHAKE MUTUAL (PENDING PHYSICAL SCAN)</div>
-                    <div style={{ fontSize: '24px', color: '#FDFBF7', fontWeight: '300' }}>{selectedVaultItem.name}</div>
-                    <div style={{ fontSize: '14px', color: '#E6A15C' }}>{selectedVaultItem.title}</div>
-                    <div style={{ background: 'rgba(230,161,92,0.02)', padding: '16px', borderRadius: '12px', fontSize: '11px', color: '#8A7366', border: '1px dashed rgba(230,161,92,0.1)' }}>
-                      🔒 Full structural identity coordinates remain locked until verified by physical QR match.
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '2px', fontWeight: '600', marginTop: '12px' }}>TIER-1 ARCHIVE MUTUAL SECURED</div>
-                    <div style={{ fontSize: '24px', color: '#FDFBF7', fontWeight: '300' }}>{selectedVaultItem.name}</div>
-                    <div style={{ fontSize: '14px', color: '#E6A15C' }}>{selectedVaultItem.title}</div>
-                    <div style={{ fontSize: '13px', color: '#D9C3B0' }}><strong>Domain:</strong> {selectedVaultItem.domain || 'Independent'}</div>
-                    
-                    <div style={{ marginTop: '12px', background: '#16110F', border: '1px solid rgba(230,161,92,0.15)', borderRadius: '14px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <span style={{ fontSize: '9px', color: '#E6A15C', letterSpacing: '1px', fontWeight: '600' }}>📌 CONTEXT STICKY NOTE</span>
-                      <textarea 
-                        value={stickyNoteText} 
-                        onChange={(e) => setStickyNoteText(e.target.value)}
-                        placeholder="Write down details to remember this peer by..." 
-                        style={{ width: '100%', height: '64px', background: 'transparent', border: 'none', outline: 'none', color: '#F5E6D3', fontSize: '12px', fontFamily: 'inherit', resize: 'none', padding: 0, lineHeight: '1.5' }}
-                      />
-                      <button onClick={saveStickyNote} style={{ alignSelf: 'flex-end', padding: '6px 12px', background: 'rgba(230,161,92,0.08)', border: '1px solid rgba(230,161,92,0.2)', color: '#E6A15C', borderRadius: '8px', fontSize: '10px', fontWeight: '600', cursor: 'pointer' }}>
-                        SAVE NOTE
-                      </button>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-                      {selectedVaultItem.shared_phone && selectedVaultItem.phone && (
-                        <div style={{ fontSize: '13px', color: '#F5E6D3', background: '#1C1210', padding: '12px', borderRadius: '8px' }}>📞 {selectedVaultItem.phone}</div>
-                      )}
-                      {selectedVaultItem.shared_linkedin && selectedVaultItem.linkedin && (
-                        <div style={{ fontSize: '13px', color: '#F5E6D3', background: '#1C1210', padding: '12px', borderRadius: '8px' }}>🔗 {selectedVaultItem.linkedin}</div>
-                      )}
-                    </div>
-
-                    <div style={{ borderTop: '1px solid rgba(230,161,92,0.1)', marginTop: '12px', paddingTop: '16px' }}>
-                      {!showTier2Options ? (
-                        <button onClick={() => setShowTier2Options(true)} style={{ width: '100%', padding: '14px', background: 'rgba(230,161,92,0.06)', border: '1px solid rgba(230,161,92,0.3)', color: '#E6A15C', borderRadius: '12px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>
-                          REQUEST CHANNEL ACCESS
-                        </button>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                          <div style={{ fontSize: '11px', color: '#8A7366' }}>Select routes to pull request:</div>
-                          <div style={{ display: 'flex', gap: '16px' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#F5E6D3', cursor: 'pointer' }}>
-                              <input type="checkbox" checked={reqPhoneCheckbox} onChange={(e) => setReqPhoneCheckbox(e.target.checked)} style={{ accentColor: '#E6A15C' }} /> Phone Line
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#F5E6D3', cursor: 'pointer' }}>
-                              <input type="checkbox" checked={reqLinkedinCheckbox} onChange={(e) => setReqLinkedinCheckbox(e.target.checked)} style={{ accentColor: '#E6A15C' }} /> LinkedIn
-                            </label>
-                          </div>
-                          <div style={{ display: 'flex', gap: '10px' }}>
-                            <button onClick={submitTier2Request} style={{ flex: 1, padding: '12px', background: '#E6A15C', color: '#0A0605', border: 'none', borderRadius: '10px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>TRANSMIT</button>
-                            <button onClick={() => setShowTier2Options(false)} style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', color: '#8A7366', border: 'none', borderRadius: '10px', fontSize: '11px', cursor: 'pointer' }}>CANCEL</button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+      {/* Connection detail */}
+      {selectedConnection && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 40 }}
+          onClick={() => setSelectedConnection(null)}>
+          <div style={{ background: '#1C1C2E', width: '100%', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 }} onClick={e => e.stopPropagation()}>
+            <textarea placeholder="Sticky note..." value={stickyNoteText} onChange={e => setStickyNoteText(e.target.value)}
+              style={{ width: '100%', minHeight: 80, padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
+            <button onClick={saveStickyNote} style={{ width: '100%', padding: 10, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none', marginBottom: 8 }}>Save note</button>
+            {!showTier2Options ? (
+              <button onClick={() => setShowTier2Options(true)} style={{ width: '100%', padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: '#F5EFE3', border: 'none' }}>Request contact info</button>
             ) : (
               <div>
-                <div style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '2px', color: '#E6A15C', marginBottom: '16px' }}>VAULT ARCHIVE MATRIX ({vaultUsers.length})</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {vaultUsers.map((user, i) => (
-                    <div key={i} onClick={() => { setSelectedVaultItem(user); }} style={{ backgroundColor: '#110D0C', borderRadius: '20px', padding: '24px', border: !user.handshake_accepted ? '1px dashed rgba(230,161,92,0.4)' : '1px solid rgba(230,161,92,0.02)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: '16px', fontWeight: '400', color: '#FDFBF7' }}>
-                          {user.qr_scanned ? user.name : !user.handshake_accepted ? `${user.name} (Incoming Request)` : `${user.name} (Awaiting QR)`}
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#E6A15C', marginTop: '4px' }}>{user.title}</div>
-                        {user.sticky_note && (
-                          <div style={{ fontSize: '11px', color: '#8A7366', marginTop: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>📝 {user.sticky_note}</div>
-                        )}
-                      </div>
-                      <div style={{ fontSize: '10px', color: !user.handshake_accepted ? '#E6A15C' : '#8A7366', border: '1px solid rgba(230,161,92,0.1)', padding: '4px 8px', borderRadius: '6px' }}>
-                        {!user.handshake_accepted ? "RESOLVE REQ" : user.qr_scanned ? "OPEN CARD" : "PENDING SCAN"}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <label style={{ display: 'block', marginBottom: 6 }}><input type="checkbox" checked={reqPhoneCheckbox} onChange={e => setReqPhoneCheckbox(e.target.checked)} /> Phone</label>
+                <label style={{ display: 'block', marginBottom: 6 }}><input type="checkbox" checked={reqLinkedinCheckbox} onChange={e => setReqLinkedinCheckbox(e.target.checked)} /> LinkedIn</label>
+                <button onClick={submitTier2Request} style={{ width: '100%', padding: 10, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>Send request</button>
               </div>
             )}
           </div>
-        )}
-
-        {activeTab === 'presence' && (
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: '24px', alignItems: 'center' }}>
-            
-            {incomingTier2Requests.map((req, idx) => (
-              <div key={idx} style={{ width: '100%', maxWidth: '350px', backgroundColor: '#0D0E12', border: '1px solid #E6A15C', borderRadius: '20px', padding: '20px', boxSizing: 'border-box' }}>
-                <div style={{ fontSize: '12px', color: '#E6A15C', fontWeight: '600' }}>TIER-2 CREDENTIAL ROUTE INPUT</div>
-                <div style={{ fontSize: '14px', color: '#FDFBF7', marginTop: '4px' }}><strong>{req.name}</strong> requests network handles:</div>
-                <div style={{ fontSize: '12px', color: '#8A7366', margin: '8px 0 16px 0' }}>
-                  Requested Paths: {req.requested_phone && ' [Phone Line] '}{req.requested_linkedin && ' [LinkedIn Link] '}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <button onClick={() => resolveTier2Request(req, req.requested_phone, req.requested_linkedin)} style={{ width: '100%', padding: '12px', background: '#E6A15C', color: '#0A0605', border: 'none', borderRadius: '8px', fontSize: '11px', fontWeight: '600' }}>SHARE REQUESTED CHANNELS</button>
-                  <button onClick={() => resolveTier2Request(req, false, false)} style={{ width: '100%', padding: '10px', background: 'transparent', color: '#8A7366', border: 'none', fontSize: '11px', cursor: 'pointer' }}>DECLINE REQ</button>
-                </div>
-              </div>
-            ))}
-
-            <div style={{ width: '100%', maxWidth: '350px', backgroundColor: '#110D0C', borderRadius: '28px', padding: '40px 32px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', position: 'relative', border: '1px solid rgba(230,161,92,0.02)' }}>
-              
-              <div onClick={() => setIsEditing(!isEditing)} style={{ position: 'absolute', top: '32px', right: '32px', width: '36px', height: '36px', borderRadius: '50%', border: '1px solid rgba(230,161,92,0.1)', background: 'rgba(20,13,12,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E6A15C" strokeWidth="1.75">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-              </div>
-
-              {isEditing ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '12px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1.5px' }}>FULL NAME</span>
-                    <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#FDFBF7', outline: 'none', fontSize: '18px' }} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1.5px' }}>PROFESSIONAL TITLE</span>
-                    <input type="text" value={role} onChange={(e) => setRole(e.target.value)} style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#E6A15C', outline: 'none', fontSize: '14px' }} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '9px', color: '#8A7366', letterSpacing: '1.5px' }}>OPERATIONAL DOMAIN</span>
-                    <input type="text" value={domain} onChange={(e) => setDomain(e.target.value)} style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#D9C3B0', outline: 'none', fontSize: '13px' }} />
-                  </div>
-                  <div style={{ borderTop: '1px solid rgba(230,161,92,0.05)', paddingTop: '12px' }}>
-                    <div onClick={() => setShowSecureInputs(!showSecureInputs)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', padding: '4px 0' }}>
-                      <span style={{ fontSize: '10px', color: '#E6A15C', letterSpacing: '1px', fontWeight: '500' }}>🔒 SOVEREIGN IDENTITY SECURE HANDLES</span>
-                      <span style={{ color: '#E6A15C', fontSize: '10px' }}>{showSecureInputs ? '▲' : '▼'}</span>
-                    </div>
-                    {showSecureInputs && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '14px', background: 'rgba(0,0,0,0.15)', padding: '14px', borderRadius: '12px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <span style={{ fontSize: '9px', color: '#8A7366' }}>SECURE PHONE LINE</span>
-                          <input type="text" value={userPhone} onChange={(e) => setUserPhone(e.target.value)} placeholder="+1 (555) 000-0000" style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#F5E6D3', outline: 'none', fontSize: '13px' }} />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <span style={{ fontSize: '9px', color: '#8A7366' }}>LINKEDIN LINK HANDLES</span>
-                          <input type="text" value={userLinkedin} onChange={(e) => setUserLinkedin(e.target.value)} placeholder="linkedin.com/in/username" style={{ width: '100%', background: 'transparent', border: 'none', padding: '4px 0', color: '#F5E6D3', outline: 'none', fontSize: '13px' }} />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <button onClick={saveProfileLocal} style={{ width: '100%', padding: '12px', background: 'rgba(230,161,92,0.06)', border: '1px solid rgba(230,161,92,0.25)', borderRadius: '10px', color: '#E6A15C', fontSize: '10px', fontWeight: '600', cursor: 'pointer' }}>SAVE PROFILE CONFIGS</button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
-                  {isCardEmpty ? (
-                    <div style={{ fontSize: '16px', color: '#3E2E2A', fontStyle: 'italic' }}>Configure digital identity parameters</div>
-                  ) : (
-                    <>
-                      <div style={{ fontSize: '24px', color: '#FDFBF7', lineHeight: '1.2' }}>{fullName}</div>
-                      <div style={{ color: '#E6A15C', fontSize: '14px' }}>{role}</div>
-                      <div style={{ fontSize: '13px', color: '#D9C3B0', opacity: 0.8 }}>{domain}</div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {isVisible && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px', borderRadius: '20px', background: 'rgba(20, 13, 12, 0.3)' }}>
-                <img src={qrCodeUrl} alt="Identity Token" style={{ width: '130px', height: '130px', borderRadius: '12px' }} />
-              </div>
-            )}
-          </div>
-        )}
-
-      </div>
-
-      <div style={{ background: 'linear-gradient(to top, #0A0605 85%, rgba(10, 6, 5, 0))', padding: '0 24px 32px 24px', display: 'flex', flexDirection: 'column', gap: '16px', boxSizing: 'border-box' }}>
-        
-        {showIntentModal && (
-          <div style={{ backgroundColor: '#110D0C', border: '1px solid rgba(230, 161, 92, 0.12)', borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            <input type="text" placeholder="Current Focus Intent?" value={currentIntent} onChange={(e) => setCurrentUrlIntent(e.target.value)} style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(230, 161, 92, 0.1)', borderRadius: '12px', padding: '16px', color: '#F5E6D3', outline: 'none', fontSize: '13px' }} />
-            <input type="text" placeholder="Private Landmark Station?" value={selectedStation} onChange={(e) => setSelectedStation(e.target.value)} style={{ width: '100%', background: '#0A0605', border: '1px solid rgba(230, 161, 92, 0.1)', borderRadius: '12px', padding: '16px', color: '#F5E6D3', outline: 'none', fontSize: '13px' }} />
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <div onClick={confirmVisibility} style={{ flex: 1, backgroundColor: '#E6A15C', color: '#140D0C', padding: '15px', borderRadius: '12px', textAlign: 'center', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>EMIT SIGNAL</div>
-              <div onClick={() => { stopQrScanner(); setShowIntentModal(false); }} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.02)', color: '#8A7366', padding: '15px', borderRadius: '12px', textAlign: 'center', fontSize: '11px', cursor: 'pointer' }}>CANCEL</div>
-            </div>
-          </div>
-        )}
-
-        <div style={{ padding: '18px 24px', borderRadius: '24px', backgroundColor: 'rgba(17, 13, 12, 0.7)', border: '1px solid rgba(230, 161, 92, 0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: '13px', color: '#F5E6D3' }}>Visible Broadcast Mode</div>
-            {isVisible && <div style={{ fontSize: '10px', color: '#8A7366', marginTop: '4px' }}>Active at {selectedStation}</div>}
-          </div>
-          <div onClick={() => { if (!isVisible) { if (!fullName.trim() || !role.trim() || !domain.trim()) { setSystemAlert("Fill card components before emitting profile."); setTimeout(() => setSystemAlert(null), 3000); return; } setShowIntentModal(true); } else { setIsVisible(false); supabase.from('active_presence_nodes').delete().eq('id', userId); setRoomUsers([]); } }} style={{ width: '46px', height: '24px', backgroundColor: isVisible ? '#E6A15C' : '#1C1210', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
-            <div style={{ width: '18px', height: '18px', backgroundColor: '#FDFBF7', borderRadius: '50%', position: 'absolute', top: '3px', left: isVisible ? '25px' : '3px', transition: 'left 0.25s ease' }} />
-          </div>
         </div>
+      )}
 
-        <div style={{ height: '56px', backgroundColor: 'rgba(17, 13, 12, 0.95)', borderRadius: '24px', border: '1px solid rgba(230,161,92,0.03)', display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
-          <div onClick={() => { setActiveTab('room'); fetchActiveNodes(); }} style={{ fontSize: '10px', letterSpacing: '2px', color: activeTab === 'room' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '16px' }}>ROOM</div>
-          <div onClick={() => { setActiveTab('vault'); stopQrScanner(); }} style={{ fontSize: '10px', letterSpacing: '2px', color: activeTab === 'vault' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '16px' }}>VAULT</div>
-          <div onClick={() => { setActiveTab('presence'); stopQrScanner(); }} style={{ fontSize: '10px', letterSpacing: '2px', color: activeTab === 'presence' ? '#E6A15C' : '#5E4A40', cursor: 'pointer', padding: '16px' }}>PRESENCE</div>
-        </div>
-      </div>
-
+      <Analytics />
     </div>
   );
 }
+
