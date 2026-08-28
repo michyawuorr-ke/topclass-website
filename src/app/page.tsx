@@ -119,6 +119,41 @@ export default function ToruokSpaceApp() {
       .then(({ data }) => { if (data) setSpaceName(data.name); });
   }, [spaceId]);
 
+  // Restore profile from the database — source of truth over localStorage,
+  // in case this device's localStorage was cleared but the profile row exists.
+  useEffect(() => {
+    if (!profileId) return;
+    supabase.from('profiles').select('*').eq('id', profileId).single().then(({ data }) => {
+      if (data) {
+        setFullName(data.name || '');
+        setRole(data.title || '');
+        setDomain(data.domain || '');
+        setUserPhone(data.phone || '');
+        setUserLinkedin(data.linkedin || '');
+        localStorage.setItem('p_name', data.name || '');
+        localStorage.setItem('p_role', data.title || '');
+        localStorage.setItem('p_domain', data.domain || '');
+        localStorage.setItem('p_phone', data.phone || '');
+        localStorage.setItem('p_link', data.linkedin || '');
+      }
+    });
+  }, [profileId]);
+
+  // Restore presence — if you're already visible in this space (e.g. after
+  // a refresh), reflect that instead of showing "Become visible" again.
+  useEffect(() => {
+    if (!profileId || !spaceId) return;
+    supabase.from('presence').select('*').eq('profile_id', profileId).eq('space_id', spaceId).single()
+      .then(({ data }) => {
+        if (data) {
+          setIsVisible(true);
+          setNeed(data.need || '');
+          setOffer(data.offer || '');
+          setSelectedStation(data.station || '');
+        }
+      });
+  }, [profileId, spaceId]);
+
   const confirmSpaceCode = () => {
     if (!spaceInput.trim()) return;
     setSpaceId(spaceInput.trim());
@@ -233,6 +268,12 @@ export default function ToruokSpaceApp() {
     }
     setShowIntentModal(false);
     setIsVisible(true);
+
+    localStorage.setItem('p_name', fullName);
+    localStorage.setItem('p_role', role);
+    localStorage.setItem('p_domain', domain);
+    localStorage.setItem('p_phone', userPhone);
+    localStorage.setItem('p_link', userLinkedin);
 
     await supabase.from('profiles').upsert({
       id: profileId, name: fullName, title: role, domain, phone: userPhone, linkedin: userLinkedin,
@@ -389,15 +430,15 @@ export default function ToruokSpaceApp() {
       )}
 
       {/* Top context header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16 }}>
+        <button onClick={() => setShowProfilePanel(true)}
+          style={{ width: 40, height: 40, borderRadius: 20, background: '#D4AF37', color: '#1C1C2E', border: 'none', fontWeight: 700, flexShrink: 0 }}>
+          {fullName ? fullName[0].toUpperCase() : '?'}
+        </button>
         <div>
           <div style={{ fontSize: 12, opacity: 0.6 }}>You are in</div>
           <div style={{ fontSize: 16, fontWeight: 600 }}>{spaceName || 'this space'}</div>
         </div>
-        <button onClick={() => setShowProfilePanel(true)}
-          style={{ width: 40, height: 40, borderRadius: 20, background: '#D4AF37', color: '#1C1C2E', border: 'none', fontWeight: 700 }}>
-          {fullName ? fullName[0].toUpperCase() : '?'}
-        </button>
       </div>
 
       {/* DISCOVER */}
