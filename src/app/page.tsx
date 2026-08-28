@@ -47,14 +47,16 @@ export default function ToruokSpaceApp() {
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('');
   const [domain, setDomain] = useState('');
+  const [capabilities, setCapabilities] = useState('');
+  const [standingNeed, setStandingNeed] = useState('');
   const [userPhone, setUserPhone] = useState('');
   const [userLinkedin, setUserLinkedin] = useState('');
+  const [showContactSharing, setShowContactSharing] = useState(false);
 
   // ---- Nav / lens state ----
   const [activeNav, setActiveNav] = useState<NavTab>('discover');
   const [activeLens, setActiveLens] = useState<Lens>('foryou');
   const [showProfilePanel, setShowProfilePanel] = useState(false);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   // ---- Presence / intent ----
   const [isVisible, setIsVisible] = useState(false);
@@ -109,6 +111,8 @@ export default function ToruokSpaceApp() {
     setFullName(localStorage.getItem('p_name') || '');
     setRole(localStorage.getItem('p_role') || '');
     setDomain(localStorage.getItem('p_domain') || '');
+    setCapabilities(localStorage.getItem('p_capabilities') || '');
+    setStandingNeed(localStorage.getItem('p_standing_need') || '');
     setUserPhone(localStorage.getItem('p_phone') || '');
     setUserLinkedin(localStorage.getItem('p_link') || '');
   }, []);
@@ -128,11 +132,15 @@ export default function ToruokSpaceApp() {
         setFullName(data.name || '');
         setRole(data.title || '');
         setDomain(data.domain || '');
+        setCapabilities(data.capabilities || '');
+        setStandingNeed(data.standing_need || '');
         setUserPhone(data.phone || '');
         setUserLinkedin(data.linkedin || '');
         localStorage.setItem('p_name', data.name || '');
         localStorage.setItem('p_role', data.title || '');
         localStorage.setItem('p_domain', data.domain || '');
+        localStorage.setItem('p_capabilities', data.capabilities || '');
+        localStorage.setItem('p_standing_need', data.standing_need || '');
         localStorage.setItem('p_phone', data.phone || '');
         localStorage.setItem('p_link', data.linkedin || '');
       }
@@ -277,6 +285,7 @@ export default function ToruokSpaceApp() {
 
     await supabase.from('profiles').upsert({
       id: profileId, name: fullName, title: role, domain, phone: userPhone, linkedin: userLinkedin,
+      capabilities, standing_need: standingNeed,
     });
 
     await supabase.from('presence').upsert({
@@ -292,13 +301,30 @@ export default function ToruokSpaceApp() {
     setTimeout(fetchPresentPeople, 300);
   };
 
-  const saveProfileLocal = () => {
+  const saveProfile = async () => {
+    if (!fullName.trim()) {
+      alert('Add your name first.');
+      return;
+    }
     localStorage.setItem('p_name', fullName);
     localStorage.setItem('p_role', role);
     localStorage.setItem('p_domain', domain);
+    localStorage.setItem('p_capabilities', capabilities);
+    localStorage.setItem('p_standing_need', standingNeed);
     localStorage.setItem('p_phone', userPhone);
     localStorage.setItem('p_link', userLinkedin);
-    setIsEditingProfile(false);
+
+    const { error } = await supabase.from('profiles').upsert({
+      id: profileId, name: fullName, title: role, domain, phone: userPhone, linkedin: userLinkedin,
+      capabilities, standing_need: standingNeed,
+    });
+
+    if (error) {
+      alert('Save failed — try again.');
+      return;
+    }
+    alert('Profile saved.');
+    setShowProfilePanel(false);
   };
 
   // ============================================================
@@ -620,15 +646,44 @@ export default function ToruokSpaceApp() {
       {/* Profile panel */}
       {showProfilePanel && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 40 }}>
-          <div style={{ background: '#1C1C2E', width: '100%', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 }}>
-            <h3 style={{ marginBottom: 12 }}>Profile</h3>
+          <div style={{ background: '#1C1C2E', width: '100%', maxHeight: '85vh', overflowY: 'auto', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 }}>
+            <h3 style={{ marginBottom: 4 }}>Profile</h3>
+            <p style={{ fontSize: 12, opacity: 0.5, marginBottom: 16 }}>Just enough for people and matches to recognize you — not a full résumé.</p>
+
+            <div style={{ fontSize: 11, opacity: 0.6, letterSpacing: 1, marginBottom: 6 }}>IDENTITY</div>
             <input placeholder="Full name" value={fullName} onChange={e => setFullName(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
-            <input placeholder="Role" value={role} onChange={e => setRole(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
-            <input placeholder="Domain" value={domain} onChange={e => setDomain(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
-            <input placeholder="Phone" value={userPhone} onChange={e => setUserPhone(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
-            <input placeholder="LinkedIn" value={userLinkedin} onChange={e => setUserLinkedin(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 12, borderRadius: 8, border: 'none' }} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={saveProfileLocal} style={{ flex: 1, padding: 12, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>Save</button>
+            <input placeholder="Role (e.g. Product Designer, Final-year student)" value={role} onChange={e => setRole(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
+            <input placeholder="Domain / field" value={domain} onChange={e => setDomain(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 16, borderRadius: 8, border: 'none' }} />
+
+            <div style={{ fontSize: 11, opacity: 0.6, letterSpacing: 1, marginBottom: 6 }}>CAPABILITIES</div>
+            <p style={{ fontSize: 12, opacity: 0.5, marginBottom: 6 }}>What can you generally help with, across any space?</p>
+            <textarea placeholder="e.g. UX feedback, fundraising advice, tutoring in statistics"
+              value={capabilities} onChange={e => setCapabilities(e.target.value)}
+              style={{ width: '100%', minHeight: 60, padding: 10, marginBottom: 16, borderRadius: 8, border: 'none', fontFamily: 'inherit' }} />
+
+            <div style={{ fontSize: 11, opacity: 0.6, letterSpacing: 1, marginBottom: 6 }}>STANDING INTEREST</div>
+            <p style={{ fontSize: 12, opacity: 0.5, marginBottom: 6 }}>What are you generally looking for, wherever you go?</p>
+            <textarea placeholder="e.g. a technical co-founder, mentorship in public speaking"
+              value={standingNeed} onChange={e => setStandingNeed(e.target.value)}
+              style={{ width: '100%', minHeight: 60, padding: 10, marginBottom: 16, borderRadius: 8, border: 'none', fontFamily: 'inherit' }} />
+
+            <div onClick={() => setShowContactSharing(!showContactSharing)}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', padding: '10px 0', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              <div>
+                <div style={{ fontSize: 11, opacity: 0.6, letterSpacing: 1 }}>CONTACT & SHARING</div>
+                <div style={{ fontSize: 12, opacity: 0.5 }}>Only shared with someone once you approve their request</div>
+              </div>
+              <span style={{ opacity: 0.6 }}>{showContactSharing ? '▲' : '▼'}</span>
+            </div>
+            {showContactSharing && (
+              <div style={{ marginTop: 10 }}>
+                <input placeholder="Phone" value={userPhone} onChange={e => setUserPhone(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
+                <input placeholder="LinkedIn" value={userLinkedin} onChange={e => setUserLinkedin(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button onClick={saveProfile} style={{ flex: 1, padding: 12, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>Save</button>
               <button onClick={() => setShowProfilePanel(false)} style={{ flex: 1, padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: '#F5EFE3', border: 'none' }}>Close</button>
             </div>
           </div>
