@@ -20,7 +20,7 @@ interface Networker {
   linkedin?: string;
 }
 
-export default function OreetiAmbientEngine() {
+export default function ToruokSpaceApp() {
   const [activeTab, setActiveTab] = useState<'room' | 'vault' | 'presence'>('presence');
   const [isVisible, setIsVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false); 
