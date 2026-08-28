@@ -35,6 +35,9 @@ interface ResourceItem {
 interface ActivityItem {
   id: string; title: string; host: string; start_time: string; end_time: string; purpose: string;
 }
+interface Message {
+  id: string; sender_profile_id: string; recipient_profile_id: string; body: string; created_at: string;
+}
 
 export default function ToruokSpaceApp() {
   // ---- Space context ----
@@ -264,6 +267,53 @@ export default function ToruokSpaceApp() {
 
   useEffect(() => {
     if (selectedConnection) setStickyNoteText(selectedConnection.sticky_note || '');
+  }, [selectedConnection]);
+
+  // ============================================================
+  // Pre-scan coordination (live station) / post-scan chat
+  // ============================================================
+  const [peerStation, setPeerStation] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [messageInput, setMessageInput] = useState('');
+
+  const fetchMessages = async (otherId: string) => {
+    const { data } = await supabase.from('messages').select('*')
+      .or(`and(sender_profile_id.eq.${profileId},recipient_profile_id.eq.${otherId}),and(sender_profile_id.eq.${otherId},recipient_profile_id.eq.${profileId})`)
+      .order('created_at', { ascending: true });
+    if (data) setMessages(data as any);
+  };
+
+  const sendMessage = async () => {
+    if (!messageInput.trim() || !selectedConnection) return;
+    const body = messageInput.trim();
+    setMessageInput('');
+    await supabase.from('messages').insert({
+      space_id: spaceId, sender_profile_id: profileId,
+      recipient_profile_id: selectedConnection.connected_profile_id, body,
+    });
+  };
+
+  useEffect(() => {
+    if (!selectedConnection) { setMessages([]); setPeerStation(''); return; }
+    const otherId = selectedConnection.connected_profile_id;
+
+    if (selectedConnection.qr_scanned) {
+      fetchMessages(otherId);
+      const channel = supabase
+        .channel(`messages_${profileId}_${otherId}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+          const m = payload.new as Message;
+          const relevant =
+            (m.sender_profile_id === profileId && m.recipient_profile_id === otherId) ||
+            (m.sender_profile_id === otherId && m.recipient_profile_id === profileId);
+          if (relevant) setMessages(prev => [...prev, m]);
+        })
+        .subscribe();
+      return () => { supabase.removeChannel(channel); };
+    } else {
+      supabase.from('presence').select('station').eq('profile_id', otherId).eq('space_id', spaceId).single()
+        .then(({ data }) => setPeerStation(data?.station || ''));
+    }
   }, [selectedConnection]);
 
   // ============================================================
@@ -694,7 +744,40 @@ export default function ToruokSpaceApp() {
       {selectedConnection && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 40 }}
           onClick={() => setSelectedConnection(null)}>
-          <div style={{ background: '#1C1C2E', width: '100%', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: '#1C1C2E', width: '100%', maxHeight: '85vh', overflowY: 'auto', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 }} onClick={e => e.stopPropagation()}>
+
+            {/* Chat unlocks only after a QR scan confirms an in-person meetup.
+                Before that, show live coordination (where they are) instead. */}
+            {selectedConnection.qr_scanned ? (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, opacity: 0.6, letterSpacing: 1, marginBottom: 8 }}>CHAT</div>
+                <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                  {messages.length === 0 && <p style={{ opacity: 0.5, fontSize: 13 }}>You met — say hello.</p>}
+                  {messages.map(m => (
+                    <div key={m.id} style={{
+                      alignSelf: m.sender_profile_id === profileId ? 'flex-end' : 'flex-start',
+                      background: m.sender_profile_id === profileId ? '#E26D34' : 'rgba(255,255,255,0.08)',
+                      color: m.sender_profile_id === profileId ? '#fff' : '#F5EFE3',
+                      padding: '8px 12px', borderRadius: 12, maxWidth: '80%', fontSize: 13,
+                    }}>
+                      {m.body}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input value={messageInput} onChange={e => setMessageInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') sendMessage(); }}
+                    placeholder="Message..." style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none' }} />
+                  <button onClick={sendMessage} style={{ padding: '10px 16px', borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>Send</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginBottom: 16, fontSize: 13, opacity: 0.75, background: 'rgba(255,255,255,0.06)', padding: 12, borderRadius: 10 }}>
+                Chat opens once you scan to confirm you've met in person.
+                {peerStation ? ` They're currently at: ${peerStation}.` : ''}
+              </div>
+            )}
+
             <textarea placeholder="Sticky note..." value={stickyNoteText} onChange={e => setStickyNoteText(e.target.value)}
               style={{ width: '100%', minHeight: 80, padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
             <button onClick={saveStickyNote} style={{ width: '100%', padding: 10, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none', marginBottom: 8 }}>Save note</button>
