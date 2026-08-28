@@ -64,7 +64,6 @@ export default function ToruokSpaceApp() {
   const [showIntentModal, setShowIntentModal] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
-  const [dynamicQrToken, setDynamicQrToken] = useState('');
 
   // ---- Discover data ----
   const [presentPeople, setPresentPeople] = useState<Presence[]>([]);
