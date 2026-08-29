@@ -1,13 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Analytics } from '@vercel/analytics/react';
-
-const SUPABASE_URL = 'https://ikhkpdfgjqqbvkyvfgrw.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlraGtwZGZnanFxYnZreXZmZ3J3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMjE1NzMsImV4cCI6MjA5NDg5NzU3M30.RWBlgX-xH9aYTNBjwrRNeeogpoIvkSRXh08gIDSjb4U';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+import { supabase } from './lib/supabase';
 
 type Lens = 'foryou' | 'people' | 'opportunities' | 'resources' | 'activities';
 type NavTab = 'discover' | 'connections' | 'journey';
