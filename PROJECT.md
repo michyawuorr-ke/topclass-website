@@ -5,11 +5,20 @@ built. Updated as part of every change, not written once and forgotten.
 
 ## What this is
 
-A human opportunity engine for physical spaces — schools, hotels,
-libraries, cafés, coworking spaces, universities. Not a networking or
-presence app: the point isn't "people are nearby," it's "here's an
-opportunity — a person, a resource, a scheduled activity — relevant to
-what you need or can offer, in the space you're actually in right now."
+A human opportunity engine for physical spaces. **Focus narrowed to two
+verticals: University and Innovation Hub** — chosen because they're the
+environments with real institutional hierarchy (a department isn't the
+whole university; a mentoring pod isn't the whole hub) and real
+multi-person staff, unlike a hotel's ephemeral single-visit guests or a
+café's flat structure. Hotel/coworking/library/café were part of an
+earlier four-beachhead exploration but are deliberately out of scope
+for now — narrowing was a conscious decision, not a limitation
+discovered by accident.
+
+Not a networking or presence app: the point isn't "people are nearby,"
+it's "here's an opportunity — a person, a resource, a scheduled
+activity — relevant to what you need or can offer, in the space you're
+actually in right now."
 
 Name: **Toruok Space** (styled TORUOK). Deliberately invented — not a
 real Luo or Swahili word — chosen for its sound, echoing the real Dholuo
@@ -86,18 +95,35 @@ across devices) is deliberately deferred, not built yet.
 - No identity-upgrade path yet from anonymous to a persistent
   phone/email-linked account.
 - Operator dashboard has no aggregated analytics yet (presence counts,
-  match/handshake rates) — only content authoring (Opportunities,
-  Resources, Activities) and space creation exist so far.
+  match/handshake rates) — only content authoring, space/zone
+  configuration exist so far.
+- **An organization can only ever have one admin (`owner_id`).** This
+  is a real gap, not a future nicety — a university department or an
+  innovation hub with real staff cannot function with a single account.
+  Multi-person org access (an `organization_members` table, invite by
+  email) is the next thing to build.
+- Opportunity/Resource/Activity field sets are fixed columns, not
+  vertical-configurable. A `metadata` JSONB column (per the beachhead
+  spec's configuration-engine idea) is the deliberately-deferred,
+  cheap version of true schema configurability — not built yet.
 
 ## Operator side (`/operator`)
 
 Separate route, separate auth: operators sign in with **magic-link
 email** (persistent identity, since they return to manage a space over
 time — unlike participants, who are anonymous walk-ins by design). An
-operator creates one Organization, then one or more Spaces under it,
-then authors Opportunities/Resources/Activities into a given Space.
-The participant link for a space (`/?space=<id>`) is shown directly in
-the dashboard once a space is selected.
+operator creates one Organization, then one or more Spaces under it
+(currently: University or Innovation Hub), then configures **Zones**
+(rooms/areas — now a real nested hierarchy via `parent_zone_id`, e.g.
+Faculty > Building > Lecture Hall, or Hub > Maker Lab > Pod) and
+authors Opportunities/Resources/Activities, each optionally tagged to
+a specific zone. The participant link for a space (`/?space=<id>`) is
+shown directly in the dashboard.
+
+Content forms match industry-standard listing shapes rather than one
+generic form reused across types — a Scholarship/Job/Grant opportunity
+has description, eligibility, compensation, deadline, and application
+method as real fields, not a single free-text blob.
 
 Ownership is enforced via `organizations.owner_id` and RLS policies
 that check space/content ownership through a join back to the owning
