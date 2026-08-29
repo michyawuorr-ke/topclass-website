@@ -106,28 +106,46 @@ across devices) is deliberately deferred, not built yet.
   vertical-configurable. A `metadata` JSONB column (per the beachhead
   spec's configuration-engine idea) is the deliberately-deferred,
   cheap version of true schema configurability — not built yet.
+- Participant-facing `page.tsx` is still one large monolithic file
+  (~800 lines) — the operator dashboard was split into `types.ts` +
+  `components/` (see below), the same treatment for `page.tsx` is the
+  next planned step.
 
 ## Operator side (`/operator`)
+
+Code structure: `src/app/operator/page.tsx` is orchestration only
+(state, Supabase calls, composing views) — actual screen markup lives
+in `src/app/operator/components/` (`AuthGate`, `OrgSetupForm`,
+`SpacesList`, `TeamPanel`, `ZonesPanel`, `OpportunitiesPanel`,
+`ResourcesPanel`, `ActivitiesPanel`), with shared types/constants in
+`types.ts`. Refactored from one 432-line file specifically so a new
+developer or designer can open one small file per concern instead of
+reading the whole thing.
 
 Separate route, separate auth: operators sign in with **magic-link
 email** (persistent identity, since they return to manage a space over
 time — unlike participants, who are anonymous walk-ins by design). An
 operator creates one Organization, then one or more Spaces under it
 (currently: University or Innovation Hub), then configures **Zones**
-(rooms/areas — now a real nested hierarchy via `parent_zone_id`, e.g.
+(rooms/areas — a real nested hierarchy via `parent_zone_id`, e.g.
 Faculty > Building > Lecture Hall, or Hub > Maker Lab > Pod) and
 authors Opportunities/Resources/Activities, each optionally tagged to
 a specific zone. The participant link for a space (`/?space=<id>`) is
 shown directly in the dashboard.
 
+**Multi-person access**: an organization is no longer limited to one
+account. `organization_members` supports inviting a teammate by email
+(owner/admin only); when that person signs in at `/operator` with a
+matching email, they're automatically attached to the org on login —
+no separate claim step. RLS ownership checks across
+organizations/spaces/zones/opportunities/resources/activities all go
+through one shared `is_org_member()` function rather than duplicating
+the same membership query six times.
+
 Content forms match industry-standard listing shapes rather than one
 generic form reused across types — a Scholarship/Job/Grant opportunity
 has description, eligibility, compensation, deadline, and application
 method as real fields, not a single free-text blob.
-
-Ownership is enforced via `organizations.owner_id` and RLS policies
-that check space/content ownership through a join back to the owning
-organization — the owner can always see/edit their own stuff.
 
 **Onboarding is self-serve but approval-gated**: anyone can sign up and
 build out an organization/space/content immediately, but it stays
