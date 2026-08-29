@@ -36,3 +36,5 @@ export function zonePath(zoneId: string | null | undefined, list: Zone[]): strin
   return parent ? `${parent} > ${z.name}` : z.name;
 }
 
+export interface Member { id: string; organization_id: string; user_id: string | null; invite_email: string; role: string; created_at: string; }
+

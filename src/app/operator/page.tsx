@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Org, Space, Zone, Item, emptyOpportunity, emptyResource, emptyActivity } from './types';
+import { Org, Space, Zone, Item, Member, emptyOpportunity, emptyResource, emptyActivity } from './types';
 import { AuthGate } from './components/AuthGate';
 import { OrgSetupForm } from './components/OrgSetupForm';
 import { SpacesList } from './components/SpacesList';
+import { TeamPanel } from './components/TeamPanel';
 import { ZonesPanel } from './components/ZonesPanel';
 import { OpportunitiesPanel } from './components/OpportunitiesPanel';
 import { ResourcesPanel } from './components/ResourcesPanel';
@@ -64,10 +65,33 @@ export default function OperatorDashboard() {
   };
 
   // ---- Organization ----
+  // Auto-claim any pending invite matching this email, then find the
+  // org via ownership OR membership — not just owner_id.
   useEffect(() => {
     if (!session) return;
-    supabase.from('organizations').select('*').eq('owner_id', session.user.id).maybeSingle()
-      .then(({ data }) => { if (data) setOrg(data); });
+
+    const resolveOrg = async () => {
+      const email = session.user.email;
+      if (email) {
+        await supabase.from('organization_members')
+          .update({ user_id: session.user.id })
+          .is('user_id', null)
+          .eq('invite_email', email);
+      }
+
+      const { data: owned } = await supabase.from('organizations')
+        .select('*').eq('owner_id', session.user.id).maybeSingle();
+      if (owned) { setOrg(owned); return; }
+
+      const { data: membership } = await supabase.from('organization_members')
+        .select('organization_id').eq('user_id', session.user.id).limit(1).maybeSingle();
+      if (membership) {
+        const { data: memberOrg } = await supabase.from('organizations')
+          .select('*').eq('id', membership.organization_id).maybeSingle();
+        if (memberOrg) setOrg(memberOrg);
+      }
+    };
+    resolveOrg();
   }, [session]);
 
   const createOrg = async () => {
@@ -80,6 +104,29 @@ export default function OperatorDashboard() {
       })
       .select().single();
     if (!error && data) setOrg(data);
+  };
+
+  // ---- Team ----
+  const [members, setMembers] = useState<Member[]>([]);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('staff');
+  const [showTeam, setShowTeam] = useState(false);
+
+  const fetchMembers = async () => {
+    if (!org) return;
+    const { data } = await supabase.from('organization_members').select('*').eq('organization_id', org.id);
+    setMembers(data || []);
+  };
+
+  useEffect(() => { if (org) fetchMembers(); }, [org]);
+
+  const inviteMember = async () => {
+    if (!inviteEmail.trim() || !org) return;
+    await supabase.from('organization_members').insert({
+      organization_id: org.id, invite_email: inviteEmail.trim(), role: inviteRole,
+    });
+    setInviteEmail('');
+    fetchMembers();
   };
 
   // ---- Spaces ----
@@ -184,12 +231,30 @@ export default function OperatorDashboard() {
 
   if (!activeSpace) {
     return (
-      <SpacesList
-        org={org} spaces={spaces} setActiveSpace={setActiveSpace}
-        newSpaceName={newSpaceName} setNewSpaceName={setNewSpaceName}
-        newSpaceType={newSpaceType} setNewSpaceType={setNewSpaceType}
-        createSpace={createSpace} signOut={signOut}
-      />
+      <div style={{ minHeight: '100vh', background: '#1C1C2E', color: '#F5EFE3', fontFamily: 'sans-serif' }}>
+        <div style={{ display: 'flex', gap: 8, padding: '16px 20px 0', maxWidth: 480, margin: '0 auto' }}>
+          <button onClick={() => setShowTeam(false)}
+            style={{ padding: '6px 14px', borderRadius: 20, border: 'none', background: !showTeam ? '#D4AF37' : 'rgba(255,255,255,0.08)', color: !showTeam ? '#1C1C2E' : '#F5EFE3' }}>
+            Spaces
+          </button>
+          <button onClick={() => setShowTeam(true)}
+            style={{ padding: '6px 14px', borderRadius: 20, border: 'none', background: showTeam ? '#D4AF37' : 'rgba(255,255,255,0.08)', color: showTeam ? '#1C1C2E' : '#F5EFE3' }}>
+            Team
+          </button>
+        </div>
+        {showTeam ? (
+          <div style={{ padding: 20, maxWidth: 480, margin: '0 auto' }}>
+            <TeamPanel members={members} inviteEmail={inviteEmail} setInviteEmail={setInviteEmail} inviteRole={inviteRole} setInviteRole={setInviteRole} inviteMember={inviteMember} />
+          </div>
+        ) : (
+          <SpacesList
+            org={org} spaces={spaces} setActiveSpace={setActiveSpace}
+            newSpaceName={newSpaceName} setNewSpaceName={setNewSpaceName}
+            newSpaceType={newSpaceType} setNewSpaceType={setNewSpaceType}
+            createSpace={createSpace} signOut={signOut}
+          />
+        )}
+      </div>
     );
   }
 
