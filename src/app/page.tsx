@@ -91,7 +91,7 @@ export default function ToruokSpaceApp() {
   const alert = (msg: string) => { setSystemAlert(msg); setTimeout(() => setSystemAlert(null), 3000); };
 
   // ============================================================
-  // Bootstrap: space from URL, identity from localStorage
+  // Bootstrap: space from URL, identity from Supabase anonymous auth
   // ============================================================
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -104,12 +104,20 @@ export default function ToruokSpaceApp() {
       if (saved) setSpaceId(saved);
     }
 
-    let pid = localStorage.getItem('toruok_profile_id');
-    if (!pid) {
-      pid = crypto.randomUUID();
-      localStorage.setItem('toruok_profile_id', pid);
-    }
-    setProfileId(pid);
+    const initAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      let uid = session?.user?.id;
+      if (!uid) {
+        const { data, error } = await supabase.auth.signInAnonymously();
+        if (error) {
+          alert('Could not start a session — check your connection.');
+          return;
+        }
+        uid = data?.user?.id;
+      }
+      if (uid) setProfileId(uid);
+    };
+    initAuth();
 
     setFullName(localStorage.getItem('p_name') || '');
     setRole(localStorage.getItem('p_role') || '');
