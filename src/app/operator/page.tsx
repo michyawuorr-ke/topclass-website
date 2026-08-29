@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-interface Org { id: string; name: string; owner_id: string; }
+interface Org { id: string; name: string; owner_id: string; approved: boolean; }
 interface Space { id: string; organization_id: string; name: string; type: string; }
 interface Item { id: string; space_id: string; title?: string; name?: string; [key: string]: any; }
 
@@ -168,6 +168,12 @@ export default function OperatorDashboard() {
           <button onClick={signOut} style={{ background: 'none', border: 'none', color: '#E26D34', fontSize: 13 }}>Sign out</button>
         </div>
 
+        {!org.approved && (
+          <div style={{ background: 'rgba(212,175,55,0.15)', border: '1px solid rgba(212,175,55,0.4)', borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13 }}>
+            Pending approval. Your spaces and content are saved, but participants won't see them until your organization is approved.
+          </div>
+        )}
+
         <h2 style={{ fontSize: 14, opacity: 0.6, marginBottom: 10 }}>Your spaces</h2>
         {spaces.length === 0 && <p style={{ opacity: 0.5, marginBottom: 16 }}>No spaces yet — create your first one below.</p>}
         {spaces.map(s => (
@@ -199,6 +205,11 @@ export default function OperatorDashboard() {
       <p style={{ fontSize: 12, opacity: 0.5, marginBottom: 16 }}>
         Participant link: {typeof window !== 'undefined' ? window.location.origin : ''}/?space={activeSpace.id}
       </p>
+      {!org.approved && (
+        <div style={{ background: 'rgba(212,175,55,0.15)', border: '1px solid rgba(212,175,55,0.4)', borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13 }}>
+          Not live yet — this space won't appear for participants until your organization is approved.
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         {(['opportunities', 'resources', 'activities'] as ContentTab[]).map(tab => (
