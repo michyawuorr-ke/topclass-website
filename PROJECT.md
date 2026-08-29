@@ -101,8 +101,16 @@ the dashboard once a space is selected.
 
 Ownership is enforced via `organizations.owner_id` and RLS policies
 that check space/content ownership through a join back to the owning
-organization — public read stays open on all of it (so Discover still
-works), only writes are restricted to the owner.
+organization — the owner can always see/edit their own stuff.
+
+**Onboarding is self-serve but approval-gated**: anyone can sign up and
+build out an organization/space/content immediately, but it stays
+invisible to participants (public SELECT policies check
+`organizations.approved = true`) until manually approved. No admin UI
+for this yet — approval is a direct SQL update
+(`update organizations set approved = true where id = '...'`),
+deliberately, since review volume is low enough that a dashboard isn't
+worth building yet.
 
 ## Build order (from the original planning pass)
 
