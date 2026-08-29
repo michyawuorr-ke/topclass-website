@@ -221,7 +221,7 @@ export default function ToruokSpaceApp() {
 
     const { data: myConnections } = await supabase
       .from('connections')
-      .select('*')
+      .select('*, connected_profile:profiles!connections_connected_profile_id_fkey(name, title, domain)')
       .eq('profile_id', profileId);
 
     if (myConnections) {
@@ -640,8 +640,19 @@ export default function ToruokSpaceApp() {
           {connections.filter(c => c.handshake_accepted).map(c => (
             <div key={c.id} onClick={() => setSelectedConnection(c)}
               style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, marginBottom: 10, cursor: 'pointer' }}>
-              <div style={{ fontWeight: 600 }}>{c.connected_profile_id}</div>
-              {c.sticky_note && <div style={{ fontSize: 13, opacity: 0.7, marginTop: 4 }}>{c.sticky_note}</div>}
+              <div style={{ fontWeight: 600 }}>
+                {c.connected_profile?.name || 'Someone'}
+              </div>
+              {(c.connected_profile?.title || c.connected_profile?.domain) && (
+                <div style={{ fontSize: 13, opacity: 0.6, marginTop: 2 }}>
+                  {[c.connected_profile.title, c.connected_profile.domain].filter(Boolean).join(' · ')}
+                </div>
+              )}
+              {c.sticky_note && (
+                <div style={{ fontSize: 13, opacity: 0.55, marginTop: 6, fontStyle: 'italic' }}>
+                  {c.sticky_note}
+                </div>
+              )}
             </div>
           ))}
 
@@ -664,7 +675,9 @@ export default function ToruokSpaceApp() {
           ) : (
             connections.map(c => (
               <div key={c.id} style={{ fontSize: 13, opacity: 0.8, marginBottom: 8 }}>
-                Connected with {c.connected_profile_id} {c.created_at ? `· ${new Date(c.created_at).toLocaleDateString()}` : ''}
+                Connected with <strong>{c.connected_profile?.name || 'someone'}</strong>
+                {c.connected_profile?.title ? ` (${c.connected_profile.title})` : ''}
+                {c.created_at ? ` · ${new Date(c.created_at).toLocaleDateString()}` : ''}
               </div>
             ))
           )}
