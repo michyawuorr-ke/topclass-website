@@ -106,23 +106,27 @@ across devices) is deliberately deferred, not built yet.
   vertical-configurable. A `metadata` JSONB column (per the beachhead
   spec's configuration-engine idea) is the deliberately-deferred,
   cheap version of true schema configurability — not built yet.
-- Participant-facing `page.tsx` is still one large monolithic file
-  (~800 lines) — the operator dashboard was split into `types.ts` +
-  `components/` (see below), the same treatment for `page.tsx` is the
-  next planned step.
+
+## Code structure
+
+Both apps are split into hooks (logic) + components (markup), never one
+large file:
+
+- **`/operator`**: `page.tsx` orchestrates only; screens live in
+  `operator/components/`, shared types/constants in `operator/types.ts`.
+- **`/` (participant app)**: `page.tsx` (125 lines) composes six hooks —
+  `useAlert`, `useIdentity` (space + persistent profile), `useDiscover`
+  (presence/opportunities/resources/activities), `usePresence`
+  (become-visible flow), `useConnections` (handshake/QR/tier-2),
+  `useChat` (gated on `qr_scanned`) — with markup in
+  `app/components/` and shared types in `app/types.ts`.
+
+Rule going forward: no screen's logic and markup live in the same file
+once a screen has real state or side effects — extract a hook and a
+component rather than letting any one file grow past what a new
+developer can read in one sitting.
 
 ## Operator side (`/operator`)
-
-Code structure: `src/app/operator/page.tsx` is orchestration only
-(state, Supabase calls, composing views) — actual screen markup lives
-in `src/app/operator/components/` (`AuthGate`, `OrgSetupForm`,
-`SpacesList`, `TeamPanel`, `ZonesPanel`, `OpportunitiesPanel`,
-`ResourcesPanel`, `ActivitiesPanel`), with shared types/constants in
-`types.ts`. Refactored from one 432-line file specifically so a new
-developer or designer can open one small file per concern instead of
-reading the whole thing.
-
-Separate route, separate auth: operators sign in with **magic-link
 email** (persistent identity, since they return to manage a space over
 time — unlike participants, who are anonymous walk-ins by design). An
 operator creates one Organization, then one or more Spaces under it
