@@ -83,11 +83,26 @@ across devices) is deliberately deferred, not built yet.
 - Own QR-code *display* (so someone else can scan you) was never
   rebuilt — only the scanning side was ported during the frontend
   rebuild.
-- No operator/institution-facing dashboard exists yet — Opportunities,
-  Resources, and Activities lenses will stay empty until organizations
-  have a way to author into them.
 - No identity-upgrade path yet from anonymous to a persistent
   phone/email-linked account.
+- Operator dashboard has no aggregated analytics yet (presence counts,
+  match/handshake rates) — only content authoring (Opportunities,
+  Resources, Activities) and space creation exist so far.
+
+## Operator side (`/operator`)
+
+Separate route, separate auth: operators sign in with **magic-link
+email** (persistent identity, since they return to manage a space over
+time — unlike participants, who are anonymous walk-ins by design). An
+operator creates one Organization, then one or more Spaces under it,
+then authors Opportunities/Resources/Activities into a given Space.
+The participant link for a space (`/?space=<id>`) is shown directly in
+the dashboard once a space is selected.
+
+Ownership is enforced via `organizations.owner_id` and RLS policies
+that check space/content ownership through a join back to the owning
+organization — public read stays open on all of it (so Discover still
+works), only writes are restricted to the owner.
 
 ## Build order (from the original planning pass)
 
@@ -98,7 +113,7 @@ across devices) is deliberately deferred, not built yet.
 5. ⬜ Relevance/matching function (need↔offer, then reciprocity)
 6. ✅ Ranked matches surfaced in guest UI (basic — real ranking is
    still step 5's job)
-7. ⬜ Operator dashboard (aggregated, space-scoped)
+7. ✅ Operator dashboard (content authoring — analytics still ⬜)
 8. ⬜ Pilot in one real space end-to-end
 
 Chat and real auth were added mid-sequence, ahead of the original
