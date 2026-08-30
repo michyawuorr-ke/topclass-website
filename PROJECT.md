@@ -15,6 +15,15 @@ earlier four-beachhead exploration but are deliberately out of scope
 for now — narrowing was a conscious decision, not a limitation
 discovered by accident.
 
+For the University vertical specifically: **model one campus, not a
+federation.** Research confirmed UoN alone spans 11 campuses, 6
+colleges, and 87 departments — genuinely federated complexity that
+would be a massive overreach to model now. One Organization = one
+campus (any of UoN Main Campus, TUK, KU, KCA, etc.) with Zones for its
+faculties/buildings/rooms works cleanly with the schema as-is; no
+special-casing needed. Multi-campus federation is a real future
+direction, not a blocker today.
+
 Not a networking or presence app: the point isn't "people are nearby,"
 it's "here's an opportunity — a person, a resource, a scheduled
 activity — relevant to what you need or can offer, in the space you're
@@ -106,6 +115,10 @@ across devices) is deliberately deferred, not built yet.
   vertical-configurable. A `metadata` JSONB column (per the beachhead
   spec's configuration-engine idea) is the deliberately-deferred,
   cheap version of true schema configurability — not built yet.
+- Operator dashboard still has no aggregated analytics/live-occupancy
+  view (the "Home" screen from the research findings' admin checklist)
+  and no People screen (list/search/filter participants) — Applications
+  is now covered, these two are not.
 
 ## Code structure
 
@@ -149,7 +162,11 @@ the same membership query six times.
 Content forms match industry-standard listing shapes rather than one
 generic form reused across types — a Scholarship/Job/Grant opportunity
 has description, eligibility, compensation, deadline, and application
-method as real fields, not a single free-text blob.
+method as real fields, not a single free-text blob. Participants can
+actually **apply** to an opportunity (optional note), not just view it
+— operators see and manage applications (status: applied → shortlisted
+→ accepted/rejected) in a dedicated Applications tab. This closes the
+core opportunity-engine loop that was previously read-only.
 
 **Onboarding is self-serve but approval-gated**: anyone can sign up and
 build out an organization/space/content immediately, but it stays
