@@ -115,10 +115,6 @@ across devices) is deliberately deferred, not built yet.
   vertical-configurable. A `metadata` JSONB column (per the beachhead
   spec's configuration-engine idea) is the deliberately-deferred,
   cheap version of true schema configurability — not built yet.
-- Operator dashboard still has no aggregated analytics/live-occupancy
-  view (the "Home" screen from the research findings' admin checklist)
-  and no People screen (list/search/filter participants) — Applications
-  is now covered, these two are not.
 
 ## Code structure
 
@@ -167,6 +163,15 @@ actually **apply** to an opportunity (optional note), not just view it
 — operators see and manage applications (status: applied → shortlisted
 → accepted/rejected) in a dedicated Applications tab. This closes the
 core opportunity-engine loop that was previously read-only.
+
+**Home tab** (the default landing tab once a space is selected) shows
+aggregate live stats: active population, applications awaiting review,
+upcoming activities, connections made. Connection count is computed via
+a `security definer` SQL function (`count_space_connections`) rather
+than granting operators raw `SELECT` on `connections` — operators get
+a number, never who-connected-with-whom, preserving the
+aggregate-not-individual-data principle. **People tab** lists everyone
+currently present, searchable by name/role/domain.
 
 **Onboarding is self-serve but approval-gated**: anyone can sign up and
 build out an organization/space/content immediately, but it stays
