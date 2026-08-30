@@ -11,6 +11,8 @@ import { ZonesPanel } from './components/ZonesPanel';
 import { OpportunitiesPanel } from './components/OpportunitiesPanel';
 import { ResourcesPanel } from './components/ResourcesPanel';
 import { ActivitiesPanel } from './components/ActivitiesPanel';
+import { HomePanel } from './components/HomePanel';
+import { PeoplePanel } from './components/PeoplePanel';
 import { ApplicationsPanel } from './components/ApplicationsPanel';
 
 export default function OperatorDashboard() {
@@ -27,8 +29,8 @@ export default function OperatorDashboard() {
   const [newSpaceType, setNewSpaceType] = useState('university');
   const [activeSpace, setActiveSpace] = useState<Space | null>(null);
 
-  type ContentTab = 'zones' | 'opportunities' | 'resources' | 'activities' | 'applications';
-  const [contentTab, setContentTab] = useState<ContentTab>('zones');
+  type ContentTab = 'home' | 'zones' | 'opportunities' | 'resources' | 'activities' | 'applications' | 'people';
+  const [contentTab, setContentTab] = useState<ContentTab>('home');
 
   const [zones, setZones] = useState<Zone[]>([]);
   const [zoneForm, setZoneForm] = useState({ name: '', description: '', capacity: '', parent_zone_id: '' });
@@ -43,6 +45,9 @@ export default function OperatorDashboard() {
   const [actForm, setActForm] = useState({ ...emptyActivity });
 
   const [applications, setApplications] = useState<Application[]>([]);
+
+  const [homeStats, setHomeStats] = useState({ activePopulation: 0, pendingApplications: 0, upcomingActivities: 0, connectionsCount: 0 });
+  const [presentPeople, setPresentPeople] = useState<any[]>([]);
 
   // ---- Auth ----
   useEffect(() => {
@@ -195,9 +200,41 @@ export default function OperatorDashboard() {
     setApplications(prev => prev.map(a => a.id === id ? { ...a, status } : a));
   };
 
+  // ---- Home / People ----
+  const fetchHomeAndPeople = async (space: Space) => {
+    const nowIso = new Date().toISOString();
+    const [{ data: presence }, { count: upcomingCount }, { data: connCount }] = await Promise.all([
+      supabase.from('presence').select('*, profiles(name, title, domain, capabilities, standing_need)').eq('space_id', space.id),
+      supabase.from('activities').select('id', { count: 'exact', head: true }).eq('space_id', space.id).gt('start_time', nowIso),
+      supabase.rpc('count_space_connections', { check_space_id: space.id }),
+    ]);
+    setPresentPeople(presence || []);
+
+    const oppIds = opportunities.map(o => o.id);
+    let pendingCount = 0;
+    if (oppIds.length > 0) {
+      const { count } = await supabase.from('opportunity_applications')
+        .select('id', { count: 'exact', head: true }).in('opportunity_id', oppIds).eq('status', 'applied');
+      pendingCount = count || 0;
+    }
+
+    setHomeStats({
+      activePopulation: (presence || []).length,
+      pendingApplications: pendingCount,
+      upcomingActivities: upcomingCount || 0,
+      connectionsCount: typeof connCount === 'number' ? connCount : 0,
+    });
+  };
+
   useEffect(() => {
     if (activeSpace) { fetchZones(activeSpace); fetchContent(activeSpace); }
   }, [activeSpace]);
+
+  // Depends on `opportunities` being loaded (for the pending-applications
+  // count), so it runs after fetchContent populates it.
+  useEffect(() => {
+    if (activeSpace) fetchHomeAndPeople(activeSpace);
+  }, [activeSpace, opportunities]);
 
   const addOpportunity = async () => {
     if (!oppForm.title.trim() || !activeSpace) return;
@@ -291,7 +328,7 @@ export default function OperatorDashboard() {
       )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' }}>
-        {(['zones', 'opportunities', 'applications', 'resources', 'activities'] as ContentTab[]).map(tab => (
+        {(['home', 'people', 'zones', 'opportunities', 'applications', 'resources', 'activities'] as ContentTab[]).map(tab => (
           <button key={tab} onClick={() => setContentTab(tab)}
             style={{ padding: '8px 14px', borderRadius: 20, border: 'none', whiteSpace: 'nowrap', background: contentTab === tab ? '#D4AF37' : 'rgba(255,255,255,0.08)', color: contentTab === tab ? '#1C1C2E' : '#F5EFE3' }}>
             {tab === 'zones' ? 'Rooms / Zones' : tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -299,6 +336,8 @@ export default function OperatorDashboard() {
         ))}
       </div>
 
+      {contentTab === 'home' && <HomePanel stats={homeStats} />}
+      {contentTab === 'people' && <PeoplePanel people={presentPeople} />}
       {contentTab === 'zones' && <ZonesPanel zones={zones} zoneForm={zoneForm} setZoneForm={setZoneForm} addZone={addZone} />}
       {contentTab === 'opportunities' && <OpportunitiesPanel opportunities={opportunities} oppForm={oppForm} setOppForm={setOppForm} addOpportunity={addOpportunity} zones={zones} />}
       {contentTab === 'applications' && <ApplicationsPanel applications={applications} updateApplicationStatus={updateApplicationStatus} />}
