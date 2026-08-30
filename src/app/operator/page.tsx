@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Org, Space, Zone, Item, Member, emptyOpportunity, emptyResource, emptyActivity } from './types';
+import { Org, Space, Zone, Item, Member, Application, emptyOpportunity, emptyResource, emptyActivity } from './types';
 import { AuthGate } from './components/AuthGate';
 import { OrgSetupForm } from './components/OrgSetupForm';
 import { SpacesList } from './components/SpacesList';
@@ -11,6 +11,7 @@ import { ZonesPanel } from './components/ZonesPanel';
 import { OpportunitiesPanel } from './components/OpportunitiesPanel';
 import { ResourcesPanel } from './components/ResourcesPanel';
 import { ActivitiesPanel } from './components/ActivitiesPanel';
+import { ApplicationsPanel } from './components/ApplicationsPanel';
 
 export default function OperatorDashboard() {
   const [email, setEmail] = useState('');
@@ -26,7 +27,7 @@ export default function OperatorDashboard() {
   const [newSpaceType, setNewSpaceType] = useState('university');
   const [activeSpace, setActiveSpace] = useState<Space | null>(null);
 
-  type ContentTab = 'zones' | 'opportunities' | 'resources' | 'activities';
+  type ContentTab = 'zones' | 'opportunities' | 'resources' | 'activities' | 'applications';
   const [contentTab, setContentTab] = useState<ContentTab>('zones');
 
   const [zones, setZones] = useState<Zone[]>([]);
@@ -40,6 +41,8 @@ export default function OperatorDashboard() {
 
   const [activities, setActivities] = useState<Item[]>([]);
   const [actForm, setActForm] = useState({ ...emptyActivity });
+
+  const [applications, setApplications] = useState<Application[]>([]);
 
   // ---- Auth ----
   useEffect(() => {
@@ -174,6 +177,22 @@ export default function OperatorDashboard() {
     setOpportunities(opps || []);
     setResources(res || []);
     setActivities(acts || []);
+
+    const oppIds = (opps || []).map(o => o.id);
+    if (oppIds.length > 0) {
+      const { data: apps } = await supabase.from('opportunity_applications')
+        .select('*, opportunities(title), profiles(name, title, domain)')
+        .in('opportunity_id', oppIds)
+        .order('created_at', { ascending: false });
+      setApplications(apps || []);
+    } else {
+      setApplications([]);
+    }
+  };
+
+  const updateApplicationStatus = async (id: string, status: string) => {
+    await supabase.from('opportunity_applications').update({ status }).eq('id', id);
+    setApplications(prev => prev.map(a => a.id === id ? { ...a, status } : a));
   };
 
   useEffect(() => {
@@ -272,7 +291,7 @@ export default function OperatorDashboard() {
       )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' }}>
-        {(['zones', 'opportunities', 'resources', 'activities'] as ContentTab[]).map(tab => (
+        {(['zones', 'opportunities', 'applications', 'resources', 'activities'] as ContentTab[]).map(tab => (
           <button key={tab} onClick={() => setContentTab(tab)}
             style={{ padding: '8px 14px', borderRadius: 20, border: 'none', whiteSpace: 'nowrap', background: contentTab === tab ? '#D4AF37' : 'rgba(255,255,255,0.08)', color: contentTab === tab ? '#1C1C2E' : '#F5EFE3' }}>
             {tab === 'zones' ? 'Rooms / Zones' : tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -282,6 +301,7 @@ export default function OperatorDashboard() {
 
       {contentTab === 'zones' && <ZonesPanel zones={zones} zoneForm={zoneForm} setZoneForm={setZoneForm} addZone={addZone} />}
       {contentTab === 'opportunities' && <OpportunitiesPanel opportunities={opportunities} oppForm={oppForm} setOppForm={setOppForm} addOpportunity={addOpportunity} zones={zones} />}
+      {contentTab === 'applications' && <ApplicationsPanel applications={applications} updateApplicationStatus={updateApplicationStatus} />}
       {contentTab === 'resources' && <ResourcesPanel resources={resources} resForm={resForm} setResForm={setResForm} addResource={addResource} zones={zones} />}
       {contentTab === 'activities' && <ActivitiesPanel activities={activities} actForm={actForm} setActForm={setActForm} addActivity={addActivity} zones={zones} />}
     </div>

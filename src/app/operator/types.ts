@@ -38,3 +38,9 @@ export function zonePath(zoneId: string | null | undefined, list: Zone[]): strin
 
 export interface Member { id: string; organization_id: string; user_id: string | null; invite_email: string; role: string; created_at: string; }
 
+export interface Application {
+  id: string; opportunity_id: string; profile_id: string; note: string | null; status: string; created_at: string;
+  opportunities?: { title: string };
+  profiles?: { name: string; title: string; domain: string };
+}
+

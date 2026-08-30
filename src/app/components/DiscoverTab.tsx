@@ -9,10 +9,12 @@ export function DiscoverTab({
   isVisible, onBecomeVisible, activeLens, setActiveLens,
   presentPeople, profileId, throttled, triggerHandshake,
   opportunities, resources, activities,
+  appliedOpportunityIds, applyToOpportunity,
 }: {
   isVisible: boolean; onBecomeVisible: () => void; activeLens: Lens; setActiveLens: (l: Lens) => void;
   presentPeople: Presence[]; profileId: string; throttled: Record<string, boolean>; triggerHandshake: (p: Presence) => void;
   opportunities: Opportunity[]; resources: ResourceItem[]; activities: ActivityItem[];
+  appliedOpportunityIds: Set<string>; applyToOpportunity: (id: string, note: string) => void;
 }) {
   return (
     <div style={{ padding: '0 16px' }}>
@@ -39,7 +41,9 @@ export function DiscoverTab({
       {(activeLens === 'foryou' || activeLens === 'people') && (
         <PeopleLens presentPeople={presentPeople} profileId={profileId} throttled={throttled} triggerHandshake={triggerHandshake} />
       )}
-      {activeLens === 'opportunities' && <OpportunitiesLens opportunities={opportunities} />}
+      {activeLens === 'opportunities' && (
+        <OpportunitiesLens opportunities={opportunities} appliedOpportunityIds={appliedOpportunityIds} applyToOpportunity={applyToOpportunity} />
+      )}
       {activeLens === 'resources' && <ResourcesLens resources={resources} />}
       {activeLens === 'activities' && <ActivitiesLens activities={activities} />}
     </div>

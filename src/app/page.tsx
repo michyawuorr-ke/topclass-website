@@ -9,6 +9,7 @@ import { useDiscover } from './hooks/useDiscover';
 import { usePresence } from './hooks/usePresence';
 import { useConnections } from './hooks/useConnections';
 import { useChat } from './hooks/useChat';
+import { useApplications } from './hooks/useApplications';
 import { SystemAlert } from './components/SystemAlert';
 import { SpaceGate } from './components/SpaceGate';
 import { Header } from './components/Header';
@@ -41,6 +42,7 @@ export default function ToruokSpaceApp() {
 
   const connections = useConnections(identity.profileId, identity.spaceId, setActiveNav, alert);
   const chat = useChat(connections.selectedConnection, identity.profileId, identity.spaceId);
+  const applications = useApplications(identity.profileId, alert);
 
   if (!identity.spaceId) {
     return <SpaceGate spaceInput={identity.spaceInput} setSpaceInput={identity.setSpaceInput} confirmSpaceCode={identity.confirmSpaceCode} />;
@@ -58,6 +60,7 @@ export default function ToruokSpaceApp() {
           presentPeople={discover.presentPeople} profileId={identity.profileId}
           throttled={connections.throttled} triggerHandshake={connections.triggerHandshake}
           opportunities={discover.opportunities} resources={discover.resources} activities={discover.activities}
+          appliedOpportunityIds={applications.appliedOpportunityIds} applyToOpportunity={applications.applyToOpportunity}
         />
       )}
 
