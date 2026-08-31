@@ -115,6 +115,12 @@ across devices) is deliberately deferred, not built yet.
   vertical-configurable. A `metadata` JSONB column (per the beachhead
   spec's configuration-engine idea) is the deliberately-deferred,
   cheap version of true schema configurability — not built yet.
+- Resources and Activities still render as plain text cards — the rich
+  banner/structured-details treatment was applied to Opportunities
+  only so far, matching the specific gap raised. Same treatment for
+  Resources/Activities is a natural, not-yet-done follow-up.
+- No image *upload* exists — `opportunities.image_url` is a pasted
+  link. A real Supabase Storage-backed upload flow is future work.
 
 ## Code structure
 
@@ -172,6 +178,14 @@ than granting operators raw `SELECT` on `connections` — operators get
 a number, never who-connected-with-whom, preserving the
 aggregate-not-individual-data principle. **People tab** lists everyone
 currently present, searchable by name/role/domain.
+
+**Opportunity cards are now full listings, not plain text.** Banner
+image (URL-based — no upload pipeline exists yet), a colored type
+badge, the actual description field (existed in the schema since
+section 18 but was never rendered until now), structured key-details
+rows (location/eligibility/compensation/deadline), and a real
+clickable apply link when `application_method` is a URL. Applies to
+every opportunity type uniformly, not special-cased per type.
 
 **Onboarding is self-serve but approval-gated**: anyone can sign up and
 build out an organization/space/content immediately, but it stays
