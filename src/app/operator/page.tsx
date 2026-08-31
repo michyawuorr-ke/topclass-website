@@ -236,6 +236,25 @@ export default function OperatorDashboard() {
     if (activeSpace) fetchHomeAndPeople(activeSpace);
   }, [activeSpace, opportunities]);
 
+  // ---- Image upload (generic — reusable for any content type's image field) ----
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const uploadImageToStorage = async (file: File): Promise<string | null> => {
+    const ext = file.name.split('.').pop();
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from('toruok-media').upload(path, file);
+    if (error) return null;
+    const { data } = supabase.storage.from('toruok-media').getPublicUrl(path);
+    return data.publicUrl;
+  };
+
+  const handleOppImageSelected = async (file: File) => {
+    setUploadingImage(true);
+    const url = await uploadImageToStorage(file);
+    if (url) setOppForm(prev => ({ ...prev, image_url: url }));
+    setUploadingImage(false);
+  };
+
   const addOpportunity = async () => {
     if (!oppForm.title.trim() || !activeSpace) return;
     await supabase.from('opportunities').insert({
@@ -340,7 +359,12 @@ export default function OperatorDashboard() {
       {contentTab === 'home' && <HomePanel stats={homeStats} />}
       {contentTab === 'people' && <PeoplePanel people={presentPeople} />}
       {contentTab === 'zones' && <ZonesPanel zones={zones} zoneForm={zoneForm} setZoneForm={setZoneForm} addZone={addZone} />}
-      {contentTab === 'opportunities' && <OpportunitiesPanel opportunities={opportunities} oppForm={oppForm} setOppForm={setOppForm} addOpportunity={addOpportunity} zones={zones} />}
+      {contentTab === 'opportunities' && (
+        <OpportunitiesPanel
+          opportunities={opportunities} oppForm={oppForm} setOppForm={setOppForm} addOpportunity={addOpportunity} zones={zones}
+          uploadingImage={uploadingImage} onImageSelected={handleOppImageSelected}
+        />
+      )}
       {contentTab === 'applications' && <ApplicationsPanel applications={applications} updateApplicationStatus={updateApplicationStatus} />}
       {contentTab === 'resources' && <ResourcesPanel resources={resources} resForm={resForm} setResForm={setResForm} addResource={addResource} zones={zones} />}
       {contentTab === 'activities' && <ActivitiesPanel activities={activities} actForm={actForm} setActForm={setActForm} addActivity={addActivity} zones={zones} />}

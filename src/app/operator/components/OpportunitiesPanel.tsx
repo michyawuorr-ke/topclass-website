@@ -7,8 +7,9 @@ interface OppFormState {
   image_url: string;
 }
 
-export function OpportunitiesPanel({ opportunities, oppForm, setOppForm, addOpportunity, zones }: {
+export function OpportunitiesPanel({ opportunities, oppForm, setOppForm, addOpportunity, zones, uploadingImage, onImageSelected }: {
   opportunities: Item[]; oppForm: OppFormState; setOppForm: (v: OppFormState) => void; addOpportunity: () => void; zones: Zone[];
+  uploadingImage: boolean; onImageSelected: (file: File) => void;
 }) {
   return (
     <div>
@@ -44,7 +45,15 @@ export function OpportunitiesPanel({ opportunities, oppForm, setOppForm, addOppo
       </select>
       <label style={labelStyle}>Location (if off-site / remote)</label>
       <input value={oppForm.location} onChange={e => setOppForm({ ...oppForm, location: e.target.value })} style={inputStyle} />
-      <label style={labelStyle}>Image URL (optional — a banner/poster for this listing)</label>
+      <label style={labelStyle}>Image</label>
+      {oppForm.image_url && (
+        <img src={oppForm.image_url} alt="" style={{ width: '100%', height: 140, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+      )}
+      <input type="file" accept="image/*" disabled={uploadingImage}
+        onChange={e => { const f = e.target.files?.[0]; if (f) onImageSelected(f); }}
+        style={{ ...inputStyle, padding: 8 }} />
+      {uploadingImage && <p style={{ fontSize: 12, opacity: 0.6, marginBottom: 8 }}>Uploading...</p>}
+      <label style={labelStyle}>Or paste an image URL directly</label>
       <input value={oppForm.image_url} onChange={e => setOppForm({ ...oppForm, image_url: e.target.value })} placeholder="https://..." style={inputStyle} />
       <button onClick={addOpportunity} style={{ width: '100%', padding: 12, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>Add opportunity</button>
     </div>
