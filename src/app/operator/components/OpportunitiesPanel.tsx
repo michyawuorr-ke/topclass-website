@@ -4,6 +4,7 @@ import { Item, Zone, OPPORTUNITY_TYPES, inputStyle, labelStyle, zonePath } from 
 interface OppFormState {
   title: string; type: string; provider: string; description: string; eligibility: string;
   compensation: string; deadline: string; application_method: string; zone_id: string; location: string; status: string;
+  image_url: string;
 }
 
 export function OpportunitiesPanel({ opportunities, oppForm, setOppForm, addOpportunity, zones }: {
@@ -43,6 +44,8 @@ export function OpportunitiesPanel({ opportunities, oppForm, setOppForm, addOppo
       </select>
       <label style={labelStyle}>Location (if off-site / remote)</label>
       <input value={oppForm.location} onChange={e => setOppForm({ ...oppForm, location: e.target.value })} style={inputStyle} />
+      <label style={labelStyle}>Image URL (optional — a banner/poster for this listing)</label>
+      <input value={oppForm.image_url} onChange={e => setOppForm({ ...oppForm, image_url: e.target.value })} placeholder="https://..." style={inputStyle} />
       <button onClick={addOpportunity} style={{ width: '100%', padding: 12, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>Add opportunity</button>
     </div>
   );

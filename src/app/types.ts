@@ -17,6 +17,7 @@ export interface Presence {
 export interface Opportunity {
   id: string; title: string; type: string; provider: string;
   eligibility: string; location: string; deadline: string; conditions: string; next_steps: string;
+  description?: string; compensation?: string; application_method?: string; image_url?: string; status?: string;
 }
 export interface ResourceItem {
   id: string; name: string; owner: string; availability: string; conditions: string;

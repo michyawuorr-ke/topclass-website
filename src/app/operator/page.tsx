@@ -246,6 +246,7 @@ export default function OperatorDashboard() {
       deadline: oppForm.deadline ? new Date(oppForm.deadline).toISOString() : null,
       application_method: oppForm.application_method || null,
       zone_id: oppForm.zone_id || null, location: oppForm.location || null, status: oppForm.status,
+      image_url: oppForm.image_url || null,
     });
     setOppForm({ ...emptyOpportunity });
     fetchContent(activeSpace);

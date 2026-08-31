@@ -16,7 +16,7 @@ export const OPPORTUNITY_TYPES = ['Scholarship', 'Job', 'Internship', 'Grant', '
 
 export const emptyOpportunity = {
   title: '', type: OPPORTUNITY_TYPES[0], provider: '', description: '', eligibility: '',
-  compensation: '', deadline: '', application_method: '', zone_id: '', location: '', status: 'open',
+  compensation: '', deadline: '', application_method: '', zone_id: '', location: '', status: 'open', image_url: '',
 };
 export const emptyResource = { name: '', owner: '', description: '', availability: '', capacity: '', zone_id: '' };
 export const emptyActivity = {
