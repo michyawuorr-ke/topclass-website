@@ -337,3 +337,4 @@ export function getDefaultEntryConfig(type: EnvironmentType): EntryConfig {
     default:               return { ...COWORKING_CONFIG };
   }
 }
+

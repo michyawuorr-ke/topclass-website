@@ -111,3 +111,4 @@ export function useEntryConfig(spaceId: string): UseEntryConfigResult {
 
   return { config, loading, error };
 }
+

@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-// Space context + persistent identity (Supabase anonymous auth) + the
-// profile fields that travel with that identity across spaces.
+// Space context + the persistent profile fields that travel with a
+// participant's identity. Auth itself (anonymous / magic link / phone /
+// institutional / invite code) is now owned entirely by EntryFlow
+// (src/app/entry/) — this hook no longer signs anyone in on its own.
+// EntryFlow calls hydrateFromEntry() once it completes, using the data
+// it already wrote to `profiles`, rather than this hook re-fetching.
 export function useIdentity(alert: (msg: string) => void) {
   const [spaceId, setSpaceId] = useState<string>('');
   const [spaceInput, setSpaceInput] = useState('');
@@ -18,7 +22,7 @@ export function useIdentity(alert: (msg: string) => void) {
   const [userLinkedin, setUserLinkedin] = useState('');
   const [showContactSharing, setShowContactSharing] = useState(false);
 
-  // Bootstrap: space from URL, identity from Supabase anonymous auth
+  // Bootstrap: space from URL or localStorage
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const s = params.get('space');
@@ -29,29 +33,6 @@ export function useIdentity(alert: (msg: string) => void) {
       const saved = localStorage.getItem('toruok_space_id');
       if (saved) setSpaceId(saved);
     }
-
-    const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      let uid = session?.user?.id;
-      if (!uid) {
-        const { data, error } = await supabase.auth.signInAnonymously();
-        if (error) {
-          alert('Could not start a session — check your connection.');
-          return;
-        }
-        uid = data?.user?.id;
-      }
-      if (uid) setProfileId(uid);
-    };
-    initAuth();
-
-    setFullName(localStorage.getItem('p_name') || '');
-    setRole(localStorage.getItem('p_role') || '');
-    setDomain(localStorage.getItem('p_domain') || '');
-    setCapabilities(localStorage.getItem('p_capabilities') || '');
-    setStandingNeed(localStorage.getItem('p_standing_need') || '');
-    setUserPhone(localStorage.getItem('p_phone') || '');
-    setUserLinkedin(localStorage.getItem('p_link') || '');
   }, []);
 
   useEffect(() => {
@@ -60,34 +41,24 @@ export function useIdentity(alert: (msg: string) => void) {
       .then(({ data }) => { if (data) setSpaceName(data.name); });
   }, [spaceId]);
 
-  // Restore profile from the database — source of truth over localStorage,
-  // in case this device's localStorage was cleared but the profile row exists.
-  useEffect(() => {
-    if (!profileId) return;
-    supabase.from('profiles').select('*').eq('id', profileId).single().then(({ data }) => {
-      if (data) {
-        setFullName(data.name || '');
-        setRole(data.title || '');
-        setDomain(data.domain || '');
-        setCapabilities(data.capabilities || '');
-        setStandingNeed(data.standing_need || '');
-        setUserPhone(data.phone || '');
-        setUserLinkedin(data.linkedin || '');
-        localStorage.setItem('p_name', data.name || '');
-        localStorage.setItem('p_role', data.title || '');
-        localStorage.setItem('p_domain', data.domain || '');
-        localStorage.setItem('p_capabilities', data.capabilities || '');
-        localStorage.setItem('p_standing_need', data.standing_need || '');
-        localStorage.setItem('p_phone', data.phone || '');
-        localStorage.setItem('p_link', data.linkedin || '');
-      }
-    });
-  }, [profileId]);
-
   const confirmSpaceCode = () => {
     if (!spaceInput.trim()) return;
     setSpaceId(spaceInput.trim());
     localStorage.setItem('toruok_space_id', spaceInput.trim());
+  };
+
+  // Called once EntryFlow completes (new entry or a returning, already-
+  // hydrated session) — populates local state from what EntryFlow
+  // already persisted, instead of a second redundant DB fetch.
+  const hydrateFromEntry = (uid: string, data: Record<string, string>) => {
+    setProfileId(uid);
+    setFullName(data.full_name || '');
+    setRole(data.title || '');
+    setDomain(data.domain || '');
+    setCapabilities(data.capabilities || '');
+    setStandingNeed(data.standing_need || '');
+    setUserPhone(data.phone || '');
+    setUserLinkedin(data.linkedin || '');
   };
 
   const saveProfile = async () => {
@@ -95,19 +66,10 @@ export function useIdentity(alert: (msg: string) => void) {
       alert('Add your name first.');
       return;
     }
-    localStorage.setItem('p_name', fullName);
-    localStorage.setItem('p_role', role);
-    localStorage.setItem('p_domain', domain);
-    localStorage.setItem('p_capabilities', capabilities);
-    localStorage.setItem('p_standing_need', standingNeed);
-    localStorage.setItem('p_phone', userPhone);
-    localStorage.setItem('p_link', userLinkedin);
-
     const { error } = await supabase.from('profiles').upsert({
       id: profileId, name: fullName, title: role, domain, phone: userPhone, linkedin: userLinkedin,
       capabilities, standing_need: standingNeed,
     });
-
     if (error) {
       alert('Save failed — try again.');
       return;
@@ -118,7 +80,7 @@ export function useIdentity(alert: (msg: string) => void) {
 
   return {
     spaceId, spaceInput, setSpaceInput, spaceName, confirmSpaceCode,
-    profileId,
+    profileId, hydrateFromEntry,
     fullName, setFullName, role, setRole, domain, setDomain,
     capabilities, setCapabilities, standingNeed, setStandingNeed,
     userPhone, setUserPhone, userLinkedin, setUserLinkedin,
