@@ -108,6 +108,36 @@ across devices) is deliberately deferred, not built yet.
   spec's configuration-engine idea) is the deliberately-deferred,
   cheap version of true schema configurability — not built yet.
 
+## Entry flow (`src/app/entry/`)
+
+A real configuration engine for how a participant enters a space —
+built independently, then integrated into the current modular
+structure rather than replacing it. Per environment type (currently
+University, Innovation Hub — Hotel/Coworking/Custom configs exist in
+code but aren't exposed in the operator's space-creation dropdown,
+per the deliberate vertical-narrowing decision), it defines: which
+auth methods are offered (anonymous / email magic link / phone OTP /
+institutional / invite code — only the *first* listed method per
+config actually renders as a working form right now; selecting a
+secondary method sets state but doesn't switch the UI — a real bug in
+the uploaded component, not yet fixed), which profile fields to
+collect and in what order, which presence fields to ask for, and what
+roles exist with their own visibility/permission defaults. Config
+resolves org-level, then space-level JSON overrides on top of the
+vertical default — `useEntryConfig` handles the merge.
+
+`EntryFlowGate` in `page.tsx` renders `EntryFlow` until entry
+completes; `useIdentity` no longer auto-signs anyone in or manages the
+entry sequence itself — it just holds profile state and exposes
+`hydrateFromEntry()`, which `EntryFlow`'s completion callback feeds
+directly (no redundant re-fetch from the DB).
+
+Known gaps: the secondary-auth-method button bug above; `invite_code`
+auth (Innovation Hub's third option) has no backing `invite_codes`
+table yet — not currently reachable anyway because of that same bug,
+so not blocking; `phone_otp` needs a configured SMS provider in
+Supabase before it would work even if reachable.
+
 ## Code structure
 
 Both apps are split into hooks (logic) + components (markup), never one
