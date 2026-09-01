@@ -243,7 +243,10 @@ export default function OperatorDashboard() {
     const ext = file.name.split('.').pop();
     const path = `${crypto.randomUUID()}.${ext}`;
     const { error } = await supabase.storage.from('toruok-media').upload(path, file);
-    if (error) return null;
+    if (error) {
+      window.alert(`Upload failed: ${error.message}`);
+      return null;
+    }
     const { data } = supabase.storage.from('toruok-media').getPublicUrl(path);
     return data.publicUrl;
   };
