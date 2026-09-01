@@ -61,7 +61,10 @@ export default function OperatorDashboard() {
 
   const sendMagicLink = async () => {
     if (!email.trim()) return;
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim() });
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: `${window.location.origin}/operator` },
+    });
     if (!error) setMagicLinkSent(true);
   };
 
