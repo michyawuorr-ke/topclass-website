@@ -1,10 +1,11 @@
 import React from 'react';
 import { Item, Zone, inputStyle, labelStyle, zonePath } from '../types';
 
-interface ResFormState { name: string; owner: string; description: string; availability: string; capacity: string; zone_id: string; }
+interface ResFormState { name: string; owner: string; description: string; availability: string; capacity: string; zone_id: string; image_url: string; }
 
-export function ResourcesPanel({ resources, resForm, setResForm, addResource, zones }: {
+export function ResourcesPanel({ resources, resForm, setResForm, addResource, zones, uploadingImage, onImageSelected }: {
   resources: Item[]; resForm: ResFormState; setResForm: (v: ResFormState) => void; addResource: () => void; zones: Zone[];
+  uploadingImage: boolean; onImageSelected: (file: File) => void;
 }) {
   return (
     <div>
@@ -30,6 +31,16 @@ export function ResourcesPanel({ resources, resForm, setResForm, addResource, zo
         <option value="">Anywhere in this space</option>
         {zones.map(z => <option key={z.id} value={z.id}>{zonePath(z.id, zones)}</option>)}
       </select>
+      <label style={labelStyle}>Image</label>
+      {resForm.image_url && (
+        <img src={resForm.image_url} alt="" style={{ width: '100%', height: 140, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+      )}
+      <input type="file" accept="image/*" disabled={uploadingImage}
+        onChange={e => { const f = e.target.files?.[0]; if (f) onImageSelected(f); }}
+        style={{ ...inputStyle, padding: 8 }} />
+      {uploadingImage && <p style={{ fontSize: 12, opacity: 0.6, marginBottom: 8 }}>Uploading...</p>}
+      <label style={labelStyle}>Or paste an image URL directly</label>
+      <input value={resForm.image_url} onChange={e => setResForm({ ...resForm, image_url: e.target.value })} placeholder="https://..." style={inputStyle} />
       <button onClick={addResource} style={{ width: '100%', padding: 12, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>Add resource</button>
     </div>
   );

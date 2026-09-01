@@ -27,12 +27,12 @@ export function useDiscover(spaceId: string) {
   };
   const fetchResources = async () => {
     if (!spaceId) return;
-    const { data } = await supabase.from('resources').select('*').eq('space_id', spaceId);
+    const { data } = await supabase.from('resources').select('*, zones(name)').eq('space_id', spaceId);
     if (data) setResources(data as any);
   };
   const fetchActivities = async () => {
     if (!spaceId) return;
-    const { data } = await supabase.from('activities').select('*').eq('space_id', spaceId);
+    const { data } = await supabase.from('activities').select('*, zones(name)').eq('space_id', spaceId);
     if (data) setActivities(data as any);
   };
 

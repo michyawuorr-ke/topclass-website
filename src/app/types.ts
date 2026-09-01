@@ -21,9 +21,12 @@ export interface Opportunity {
 }
 export interface ResourceItem {
   id: string; name: string; owner: string; availability: string; conditions: string;
+  description?: string; capacity?: string; image_url?: string; zones?: { name: string };
 }
 export interface ActivityItem {
   id: string; title: string; host: string; start_time: string; end_time: string; purpose: string;
+  description?: string; category?: string; capacity?: string; registration_link?: string;
+  image_url?: string; zones?: { name: string };
 }
 export interface Message {
   id: string; sender_profile_id: string; recipient_profile_id: string; body: string; created_at: string;

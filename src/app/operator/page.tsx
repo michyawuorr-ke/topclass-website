@@ -255,6 +255,20 @@ export default function OperatorDashboard() {
     setUploadingImage(false);
   };
 
+  const handleResImageSelected = async (file: File) => {
+    setUploadingImage(true);
+    const url = await uploadImageToStorage(file);
+    if (url) setResForm(prev => ({ ...prev, image_url: url }));
+    setUploadingImage(false);
+  };
+
+  const handleActImageSelected = async (file: File) => {
+    setUploadingImage(true);
+    const url = await uploadImageToStorage(file);
+    if (url) setActForm(prev => ({ ...prev, image_url: url }));
+    setUploadingImage(false);
+  };
+
   const addOpportunity = async () => {
     if (!oppForm.title.trim() || !activeSpace) return;
     await supabase.from('opportunities').insert({
@@ -277,7 +291,7 @@ export default function OperatorDashboard() {
       space_id: activeSpace.id,
       name: resForm.name, owner: resForm.owner || null, description: resForm.description || null,
       availability: resForm.availability || null, capacity: resForm.capacity || null,
-      zone_id: resForm.zone_id || null,
+      zone_id: resForm.zone_id || null, image_url: resForm.image_url || null,
     });
     setResForm({ ...emptyResource });
     fetchContent(activeSpace);
@@ -292,7 +306,7 @@ export default function OperatorDashboard() {
       start_time: actForm.start_time ? new Date(actForm.start_time).toISOString() : null,
       end_time: actForm.end_time ? new Date(actForm.end_time).toISOString() : null,
       zone_id: actForm.zone_id || null, capacity: actForm.capacity || null,
-      registration_link: actForm.registration_link || null,
+      registration_link: actForm.registration_link || null, image_url: actForm.image_url || null,
     });
     setActForm({ ...emptyActivity });
     fetchContent(activeSpace);
@@ -366,8 +380,18 @@ export default function OperatorDashboard() {
         />
       )}
       {contentTab === 'applications' && <ApplicationsPanel applications={applications} updateApplicationStatus={updateApplicationStatus} />}
-      {contentTab === 'resources' && <ResourcesPanel resources={resources} resForm={resForm} setResForm={setResForm} addResource={addResource} zones={zones} />}
-      {contentTab === 'activities' && <ActivitiesPanel activities={activities} actForm={actForm} setActForm={setActForm} addActivity={addActivity} zones={zones} />}
+      {contentTab === 'resources' && (
+        <ResourcesPanel
+          resources={resources} resForm={resForm} setResForm={setResForm} addResource={addResource} zones={zones}
+          uploadingImage={uploadingImage} onImageSelected={handleResImageSelected}
+        />
+      )}
+      {contentTab === 'activities' && (
+        <ActivitiesPanel
+          activities={activities} actForm={actForm} setActForm={setActForm} addActivity={addActivity} zones={zones}
+          uploadingImage={uploadingImage} onImageSelected={handleActImageSelected}
+        />
+      )}
     </div>
   );
 }

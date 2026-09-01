@@ -3,11 +3,12 @@ import { Item, Zone, inputStyle, labelStyle, zonePath } from '../types';
 
 interface ActFormState {
   title: string; host: string; description: string; category: string; start_time: string; end_time: string;
-  zone_id: string; capacity: string; registration_link: string;
+  zone_id: string; capacity: string; registration_link: string; image_url: string;
 }
 
-export function ActivitiesPanel({ activities, actForm, setActForm, addActivity, zones }: {
+export function ActivitiesPanel({ activities, actForm, setActForm, addActivity, zones, uploadingImage, onImageSelected }: {
   activities: Item[]; actForm: ActFormState; setActForm: (v: ActFormState) => void; addActivity: () => void; zones: Zone[];
+  uploadingImage: boolean; onImageSelected: (file: File) => void;
 }) {
   return (
     <div>
@@ -39,6 +40,16 @@ export function ActivitiesPanel({ activities, actForm, setActForm, addActivity, 
       <input value={actForm.capacity} onChange={e => setActForm({ ...actForm, capacity: e.target.value })} style={inputStyle} />
       <label style={labelStyle}>Registration link</label>
       <input value={actForm.registration_link} onChange={e => setActForm({ ...actForm, registration_link: e.target.value })} style={inputStyle} />
+      <label style={labelStyle}>Image</label>
+      {actForm.image_url && (
+        <img src={actForm.image_url} alt="" style={{ width: '100%', height: 140, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+      )}
+      <input type="file" accept="image/*" disabled={uploadingImage}
+        onChange={e => { const f = e.target.files?.[0]; if (f) onImageSelected(f); }}
+        style={{ ...inputStyle, padding: 8 }} />
+      {uploadingImage && <p style={{ fontSize: 12, opacity: 0.6, marginBottom: 8 }}>Uploading...</p>}
+      <label style={labelStyle}>Or paste an image URL directly</label>
+      <input value={actForm.image_url} onChange={e => setActForm({ ...actForm, image_url: e.target.value })} placeholder="https://..." style={inputStyle} />
       <button onClick={addActivity} style={{ width: '100%', padding: 12, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>Add activity</button>
     </div>
   );

@@ -18,10 +18,10 @@ export const emptyOpportunity = {
   title: '', type: OPPORTUNITY_TYPES[0], provider: '', description: '', eligibility: '',
   compensation: '', deadline: '', application_method: '', zone_id: '', location: '', status: 'open', image_url: '',
 };
-export const emptyResource = { name: '', owner: '', description: '', availability: '', capacity: '', zone_id: '' };
+export const emptyResource = { name: '', owner: '', description: '', availability: '', capacity: '', zone_id: '', image_url: '' };
 export const emptyActivity = {
   title: '', host: '', description: '', category: '', start_time: '', end_time: '',
-  zone_id: '', capacity: '', registration_link: '',
+  zone_id: '', capacity: '', registration_link: '', image_url: '',
 };
 
 export const inputStyle: CSSProperties = { width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none', fontFamily: 'inherit' };
