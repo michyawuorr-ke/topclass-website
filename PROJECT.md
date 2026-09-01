@@ -103,27 +103,10 @@ across devices) is deliberately deferred, not built yet.
   rebuild.
 - No identity-upgrade path yet from anonymous to a persistent
   phone/email-linked account.
-- Operator dashboard has no aggregated analytics yet (presence counts,
-  match/handshake rates) — only content authoring, space/zone
-  configuration exist so far.
-- **An organization can only ever have one admin (`owner_id`).** This
-  is a real gap, not a future nicety — a university department or an
-  innovation hub with real staff cannot function with a single account.
-  Multi-person org access (an `organization_members` table, invite by
-  email) is the next thing to build.
 - Opportunity/Resource/Activity field sets are fixed columns, not
   vertical-configurable. A `metadata` JSONB column (per the beachhead
   spec's configuration-engine idea) is the deliberately-deferred,
   cheap version of true schema configurability — not built yet.
-- Resources and Activities still render as plain text cards — the rich
-  banner/structured-details treatment was applied to Opportunities
-  only so far, matching the specific gap raised. Same treatment for
-  Resources/Activities is a natural, not-yet-done follow-up.
-- No image *upload* pipeline exists for Resources/Activities yet —
-  only Opportunities uses the real upload flow so far, since that's
-  the gap that was raised. The `toruok-media` bucket and upload
-  helper are already generic/reusable — wiring Resources/Activities
-  to it is a small follow-up, not a new build.
 
 ## Code structure
 
@@ -195,11 +178,18 @@ special-cased per type.
 device, gets a public URL, and populates the image field — no manual
 URL-pasting required (though it's kept as a fallback). Built generic
 from the start — one bucket, one `uploadImageToStorage()` helper in
-`operator/page.tsx` — so Resources/Activities/anything else needing an
-image can reuse it rather than rebuilding upload logic per content
-type. Upload is restricted to real authenticated operators (blocked
-for anonymous participant sessions); public read so images display to
-anyone; delete restricted to the uploader's own files.
+`operator/page.tsx`. Upload is restricted to real authenticated
+operators (blocked for anonymous participant sessions); public read
+so images display to anyone; delete restricted to the uploader's own
+files.
+
+**Resources and Activities now get the same rich treatment as
+Opportunities** — banner image (using the same upload pipeline),
+description, structured details. Resources show
+location/availability/capacity; Activities show a category badge,
+when/location/capacity, and a clickable Register link when
+`registration_link` is set. "Location" resolves to a real room name
+via a join to `zones`, not a raw ID.
 
 **Onboarding is self-serve but approval-gated**: anyone can sign up and
 build out an organization/space/content immediately, but it stays
