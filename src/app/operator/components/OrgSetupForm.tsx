@@ -1,7 +1,7 @@
 import React from 'react';
 import { inputStyle, labelStyle } from '../types';
 
-interface OrgFormState { name: string; description: string; website: string; contact_email: string; contact_phone: string; }
+interface OrgFormState { name: string; description: string; website: string; contact_email: string; contact_phone: string; email_domain: string; }
 
 export function OrgSetupForm({ orgForm, setOrgForm, createOrg }: {
   orgForm: OrgFormState; setOrgForm: (v: OrgFormState) => void; createOrg: () => void;
@@ -20,8 +20,12 @@ export function OrgSetupForm({ orgForm, setOrgForm, createOrg }: {
       <input value={orgForm.contact_email} onChange={e => setOrgForm({ ...orgForm, contact_email: e.target.value })} style={inputStyle} />
       <label style={labelStyle}>Contact phone</label>
       <input value={orgForm.contact_phone} onChange={e => setOrgForm({ ...orgForm, contact_phone: e.target.value })} style={inputStyle} />
+      <label style={labelStyle}>Institutional email domain</label>
+      <input value={orgForm.email_domain} onChange={e => setOrgForm({ ...orgForm, email_domain: e.target.value })} placeholder="e.g. university.ac.ke" style={inputStyle} />
+      <p style={{ fontSize: 11, opacity: 0.5, marginTop: -8, marginBottom: 12 }}>
+        Optional. If set, space admin and zone publisher invites can only be claimed by a Google account on this domain — leave blank if you don't need that restriction.
+      </p>
       <button onClick={createOrg} style={{ width: '100%', padding: 12, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none', marginTop: 4 }}>Create</button>
     </div>
   );
 }
-

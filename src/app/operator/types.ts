@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 export interface Org {
   id: string; name: string; owner_id: string; approved: boolean;
   description?: string; website?: string; contact_email?: string; contact_phone?: string;
+  email_domain?: string | null;
   // Entry-flow configuration (see src/app/entry/) — optional override layer
   environment_type?: string;
   logo_url?: string;

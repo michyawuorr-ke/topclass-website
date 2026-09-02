@@ -23,7 +23,7 @@ export default function OperatorDashboard() {
   const [authLoading, setAuthLoading] = useState(true);
 
   const [org, setOrg] = useState<Org | null>(null);
-  const [orgForm, setOrgForm] = useState({ name: '', description: '', website: '', contact_email: '', contact_phone: '' });
+  const [orgForm, setOrgForm] = useState({ name: '', description: '', website: '', contact_email: '', contact_phone: '', email_domain: '' });
 
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [newSpaceName, setNewSpaceName] = useState('');
@@ -69,6 +69,14 @@ export default function OperatorDashboard() {
     if (!error) setMagicLinkSent(true);
   };
 
+  const signInWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/operator` },
+    });
+    if (error) window.alert(`Could not start Google sign-in: ${error.message}`);
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setOrg(null);
@@ -77,8 +85,10 @@ export default function OperatorDashboard() {
   };
 
   // ---- Organization ----
-  // Auto-claim any pending invite matching this email, then find the
-  // org via ownership OR membership — not just owner_id.
+  // Auto-claim any pending invite matching this email — at every tier,
+  // not just org membership — then find the org by walking up from
+  // whichever tier actually matched. A space admin or zone publisher
+  // who was never made an org member still needs to land somewhere.
   useEffect(() => {
     if (!session) return;
 
@@ -86,6 +96,14 @@ export default function OperatorDashboard() {
       const email = session.user.email;
       if (email) {
         await supabase.from('organization_members')
+          .update({ user_id: session.user.id })
+          .is('user_id', null)
+          .eq('invite_email', email);
+        await supabase.from('space_admins')
+          .update({ user_id: session.user.id })
+          .is('user_id', null)
+          .eq('invite_email', email);
+        await supabase.from('zone_publishers')
           .update({ user_id: session.user.id })
           .is('user_id', null)
           .eq('invite_email', email);
@@ -100,7 +118,35 @@ export default function OperatorDashboard() {
       if (membership) {
         const { data: memberOrg } = await supabase.from('organizations')
           .select('*').eq('id', membership.organization_id).maybeSingle();
-        if (memberOrg) setOrg(memberOrg);
+        if (memberOrg) { setOrg(memberOrg); return; }
+      }
+
+      const { data: spaceAdminRow } = await supabase.from('space_admins')
+        .select('space_id').eq('user_id', session.user.id).limit(1).maybeSingle();
+      if (spaceAdminRow) {
+        const { data: adminSpace } = await supabase.from('spaces')
+          .select('organization_id').eq('id', spaceAdminRow.space_id).maybeSingle();
+        if (adminSpace) {
+          const { data: spaceOrg } = await supabase.from('organizations')
+            .select('*').eq('id', adminSpace.organization_id).maybeSingle();
+          if (spaceOrg) { setOrg(spaceOrg); return; }
+        }
+      }
+
+      const { data: publisherRow } = await supabase.from('zone_publishers')
+        .select('zone_id').eq('user_id', session.user.id).limit(1).maybeSingle();
+      if (publisherRow) {
+        const { data: publisherZone } = await supabase.from('zones')
+          .select('space_id').eq('id', publisherRow.zone_id).maybeSingle();
+        if (publisherZone) {
+          const { data: publisherSpace } = await supabase.from('spaces')
+            .select('organization_id').eq('id', publisherZone.space_id).maybeSingle();
+          if (publisherSpace) {
+            const { data: publisherOrg } = await supabase.from('organizations')
+              .select('*').eq('id', publisherSpace.organization_id).maybeSingle();
+            if (publisherOrg) setOrg(publisherOrg);
+          }
+        }
       }
     };
     resolveOrg();
@@ -113,6 +159,7 @@ export default function OperatorDashboard() {
         name: orgForm.name.trim(), owner_id: session.user.id,
         description: orgForm.description || null, website: orgForm.website || null,
         contact_email: orgForm.contact_email || null, contact_phone: orgForm.contact_phone || null,
+        email_domain: orgForm.email_domain.trim().toLowerCase() || null,
       })
       .select().single();
     if (error) { window.alert(`Could not create organization: ${error.message}`); return; }
@@ -367,7 +414,7 @@ export default function OperatorDashboard() {
   // Render — orchestration only, markup lives in components/
   // ============================================================
   if (authLoading) return <div style={{ padding: 24, color: '#F5EFE3', background: '#1C1C2E', minHeight: '100vh' }}>Loading...</div>;
-  if (!session) return <AuthGate email={email} setEmail={setEmail} magicLinkSent={magicLinkSent} sendMagicLink={sendMagicLink} />;
+  if (!session) return <AuthGate email={email} setEmail={setEmail} magicLinkSent={magicLinkSent} sendMagicLink={sendMagicLink} signInWithGoogle={signInWithGoogle} />;
   if (!org) return <OrgSetupForm orgForm={orgForm} setOrgForm={setOrgForm} createOrg={createOrg} />;
 
   if (!activeSpace) {

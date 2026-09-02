@@ -93,6 +93,25 @@ across devices) is deliberately deferred, not built yet.
 
 ## Known gaps (flagged, not yet solved)
 
+- Space admin / zone publisher invites are still manual, one at a
+  time, from a **Space Team** tab inside each space. Signing in with
+  Google (added on top of magic link in `AuthGate`) is what actually
+  claims those invites now, and an org can set `email_domain` (e.g.
+  `university.ac.ke`) to require the claiming Google account be on
+  that domain — that's the real "official email domain
+  authentication" piece. Still missing: auto-*creating*
+  space_admin/zone_publisher rows for someone who was never manually
+  invited at all (true zero-touch provisioning from a role/department
+  claim). Google Workspace OAuth doesn't hand you that claim — closing
+  this needs either a self-declare + one-tap operator approval flow,
+  or a Google Admin SDK directory lookup (needs domain-wide delegation
+  from university IT, not just code).
+
+- Manual step, not code: Google has to be enabled as an OAuth provider
+  in the Supabase dashboard (Authentication > Providers > Google)
+  using a Google Cloud OAuth client, once per project. No migration
+  covers this.
+
 - **Fixed but worth remembering the pattern**: organization creation
   silently failed for a while — the RLS policy checked "does this org
   already exist and do you own it," which can never be true for a
