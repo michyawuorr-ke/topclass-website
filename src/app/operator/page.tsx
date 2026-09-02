@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Org, Space, Zone, Item, Member, SpaceAdmin, ZonePublisher, Application, emptyOpportunity, emptyResource, emptyActivity } from './types';
+import { Org, Space, Zone, Item, Member, SpaceAdmin, ZonePublisher, AccessRequest, Application, emptyOpportunity, emptyResource, emptyActivity } from './types';
 import { AuthGate } from './components/AuthGate';
 import { OrgSetupForm } from './components/OrgSetupForm';
 import { SpacesList } from './components/SpacesList';
 import { TeamPanel } from './components/TeamPanel';
 import { SpaceTeamPanel } from './components/SpaceTeamPanel';
+import { RequestAccessForm } from './components/RequestAccessForm';
 import { ZonesPanel } from './components/ZonesPanel';
 import { OpportunitiesPanel } from './components/OpportunitiesPanel';
 import { ResourcesPanel } from './components/ResourcesPanel';
@@ -85,10 +86,16 @@ export default function OperatorDashboard() {
   };
 
   // ---- Organization ----
+  const [domainOrgs, setDomainOrgs] = useState<Org[]>([]);
+  const [showCreateOrgForm, setShowCreateOrgForm] = useState(false);
+
   // Auto-claim any pending invite matching this email — at every tier,
   // not just org membership — then find the org by walking up from
   // whichever tier actually matched. A space admin or zone publisher
   // who was never made an org member still needs to land somewhere.
+  // If nothing matches at all, look for an org on the same email
+  // domain — that's what turns "create a new org" into "request
+  // access to the one your university already has".
   useEffect(() => {
     if (!session) return;
 
@@ -144,9 +151,16 @@ export default function OperatorDashboard() {
           if (publisherSpace) {
             const { data: publisherOrg } = await supabase.from('organizations')
               .select('*').eq('id', publisherSpace.organization_id).maybeSingle();
-            if (publisherOrg) setOrg(publisherOrg);
+            if (publisherOrg) { setOrg(publisherOrg); return; }
           }
         }
+      }
+
+      const domain = email?.split('@')[1]?.toLowerCase();
+      if (domain) {
+        const { data: matches } = await supabase.from('organizations')
+          .select('*').eq('email_domain', domain).eq('approved', true);
+        if (matches && matches.length) setDomainOrgs(matches);
       }
     };
     resolveOrg();
@@ -215,14 +229,18 @@ export default function OperatorDashboard() {
   const [zonePublishers, setZonePublishers] = useState<ZonePublisher[]>([]);
   const [zonePublisherInviteEmail, setZonePublisherInviteEmail] = useState('');
   const [zonePublisherZoneId, setZonePublisherZoneId] = useState('');
+  const [pendingRequests, setPendingRequests] = useState<AccessRequest[]>([]);
 
   const fetchSpaceTeam = async (space: Space) => {
-    const [{ data: admins }, { data: publishers }] = await Promise.all([
+    const [{ data: admins }, { data: publishers }, { data: spaceRequests }, { data: zoneRequests }] = await Promise.all([
       supabase.from('space_admins').select('*').eq('space_id', space.id),
       supabase.from('zone_publishers').select('*, zones!inner(space_id)').eq('zones.space_id', space.id),
+      supabase.from('access_requests').select('*').eq('space_id', space.id).eq('status', 'pending'),
+      supabase.from('access_requests').select('*, zones!inner(space_id)').eq('zones.space_id', space.id).eq('status', 'pending'),
     ]);
     setSpaceAdmins(admins || []);
     setZonePublishers(publishers || []);
+    setPendingRequests([...(spaceRequests || []), ...(zoneRequests || [])]);
   };
 
   const inviteSpaceAdmin = async () => {
@@ -244,6 +262,18 @@ export default function OperatorDashboard() {
     setZonePublisherInviteEmail('');
     setZonePublisherZoneId('');
     fetchSpaceTeam(activeSpace);
+  };
+
+  const approveRequest = async (requestId: string) => {
+    const { error } = await supabase.rpc('approve_access_request', { request_id: requestId });
+    if (error) { window.alert(`Could not approve: ${error.message}`); return; }
+    if (activeSpace) fetchSpaceTeam(activeSpace);
+  };
+
+  const denyRequest = async (requestId: string) => {
+    const { error } = await supabase.rpc('deny_access_request', { request_id: requestId });
+    if (error) { window.alert(`Could not deny: ${error.message}`); return; }
+    if (activeSpace) fetchSpaceTeam(activeSpace);
   };
 
   // ---- Zones ----
@@ -415,6 +445,15 @@ export default function OperatorDashboard() {
   // ============================================================
   if (authLoading) return <div style={{ padding: 24, color: '#F5EFE3', background: '#1C1C2E', minHeight: '100vh' }}>Loading...</div>;
   if (!session) return <AuthGate email={email} setEmail={setEmail} magicLinkSent={magicLinkSent} sendMagicLink={sendMagicLink} signInWithGoogle={signInWithGoogle} />;
+  if (!org && domainOrgs.length > 0 && !showCreateOrgForm) {
+    return (
+      <RequestAccessForm
+        orgs={domainOrgs} userId={session.user.id} userEmail={session.user.email || ''}
+        onSwitchToCreate={() => setShowCreateOrgForm(true)}
+        onSignOut={signOut}
+      />
+    );
+  }
   if (!org) return <OrgSetupForm orgForm={orgForm} setOrgForm={setOrgForm} createOrg={createOrg} />;
 
   if (!activeSpace) {
@@ -475,6 +514,7 @@ export default function OperatorDashboard() {
           spaceAdmins={spaceAdmins} spaceAdminInviteEmail={spaceAdminInviteEmail} setSpaceAdminInviteEmail={setSpaceAdminInviteEmail} inviteSpaceAdmin={inviteSpaceAdmin}
           zonePublishers={zonePublishers} zonePublisherInviteEmail={zonePublisherInviteEmail} setZonePublisherInviteEmail={setZonePublisherInviteEmail}
           zonePublisherZoneId={zonePublisherZoneId} setZonePublisherZoneId={setZonePublisherZoneId} inviteZonePublisher={inviteZonePublisher} zones={zones}
+          pendingRequests={pendingRequests} approveRequest={approveRequest} denyRequest={denyRequest}
         />
       )}
       {contentTab === 'zones' && <ZonesPanel zones={zones} zoneForm={zoneForm} setZoneForm={setZoneForm} addZone={addZone} />}

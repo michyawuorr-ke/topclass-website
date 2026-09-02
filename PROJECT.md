@@ -91,7 +91,71 @@ Auth: **Supabase anonymous sign-in** — frictionless walk-up identity
 identity-upgrade path (linking phone/email later, for persistence
 across devices) is deliberately deferred, not built yet.
 
+## Self-declare + approval
+
+Closes the gap SSO alone couldn't: someone domain-verified via Google
+who was never manually invited can now request Tier 2/3 access
+themselves, instead of being stuck.
+
+- On sign-in, if no invite/membership matched at any tier, the app
+  looks for an approved organization whose `email_domain` matches the
+  signed-in account's domain. If one exists, the person sees a
+  **request access** screen (pick Space Admin or Zone Publisher, a
+  space/zone, an optional note) instead of "set up your organization"
+  — with a manual "set up a new organization instead" escape hatch,
+  since a domain match isn't proof they should default into requesting.
+- `access_requests` table holds the request. `approve_access_request()`
+  / `deny_access_request()` are `security definer` Postgres functions,
+  not raw table updates — approval atomically checks the approver is
+  actually a Tier 2+ admin of that scope AND creates the real
+  `space_admins`/`zone_publishers` row in the same transaction, so
+  there's no window where a request is "approved" but access wasn't
+  actually granted.
+- Approvals surface in the **Space Team** tab as a **Pending Requests**
+  section at the top, visible to whichever space admin the request is
+  scoped to. One tap to approve or deny.
+
+## Self-declare + approval
+
+Closes the gap SSO alone couldn't: someone domain-verified via Google
+who was never manually invited can now request Tier 2/3 access
+themselves, instead of being stuck.
+
+- On sign-in, if no invite/membership matched at any tier, the app
+  looks for an approved organization whose `email_domain` matches the
+  signed-in account's domain. If one exists, the person sees a
+  **request access** screen (pick Space Admin or Zone Publisher, a
+  space/zone, an optional note) instead of "set up your organization"
+  — with a manual "set up a new organization instead" escape hatch,
+  since a domain match isn't proof they should default into requesting.
+- `access_requests` table holds the request. `approve_access_request()`
+  / `deny_access_request()` are `security definer` Postgres functions,
+  not raw table updates — approval atomically checks the approver is
+  actually a Tier 2+ admin of that scope AND creates the real
+  `space_admins`/`zone_publishers` row in the same transaction, so
+  there's no window where a request is "approved" but access wasn't
+  actually granted.
+- Approvals surface in the **Space Team** tab as a **Pending Requests**
+  section at the top, visible to whichever space admin the request is
+  scoped to. One tap to approve or deny.
+
 ## Known gaps (flagged, not yet solved)
+
+- Self-declare access requests only work for an org that already
+  exists and already set `email_domain` — someone whose university
+  has no org set up yet still goes through "set up your organization"
+  as a new owner, since there's nothing to request access to.
+  Auto-approving via a Google Admin SDK directory lookup (instead of
+  a human tapping Approve) is still unbuilt and needs domain-wide
+  delegation from university IT.
+
+- Self-declare access requests only work for an org that already
+  exists and already set `email_domain` — someone whose university
+  has no org set up yet still goes through "set up your organization"
+  as a new owner, since there's nothing to request access to.
+  Auto-approving via a Google Admin SDK directory lookup (instead of
+  a human tapping Approve) is still unbuilt and needs domain-wide
+  delegation from university IT.
 
 - Space admin / zone publisher invites are still manual, one at a
   time, from a **Space Team** tab inside each space. Signing in with

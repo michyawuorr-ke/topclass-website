@@ -1,17 +1,41 @@
 import React from 'react';
-import { SpaceAdmin, ZonePublisher, Zone, inputStyle, labelStyle, zonePath } from '../types';
+import { SpaceAdmin, ZonePublisher, AccessRequest, Zone, inputStyle, labelStyle, zonePath } from '../types';
 
 export function SpaceTeamPanel({
   spaceAdmins, spaceAdminInviteEmail, setSpaceAdminInviteEmail, inviteSpaceAdmin,
   zonePublishers, zonePublisherInviteEmail, setZonePublisherInviteEmail,
   zonePublisherZoneId, setZonePublisherZoneId, inviteZonePublisher, zones,
+  pendingRequests, approveRequest, denyRequest,
 }: {
   spaceAdmins: SpaceAdmin[]; spaceAdminInviteEmail: string; setSpaceAdminInviteEmail: (v: string) => void; inviteSpaceAdmin: () => void;
   zonePublishers: ZonePublisher[]; zonePublisherInviteEmail: string; setZonePublisherInviteEmail: (v: string) => void;
   zonePublisherZoneId: string; setZonePublisherZoneId: (v: string) => void; inviteZonePublisher: () => void; zones: Zone[];
+  pendingRequests: AccessRequest[]; approveRequest: (id: string) => void; denyRequest: (id: string) => void;
 }) {
   return (
     <div>
+      {pendingRequests.length > 0 && (
+        <>
+          <h2 style={{ fontSize: 14, opacity: 0.6, marginBottom: 4 }}>Pending Requests</h2>
+          <p style={{ fontSize: 11, opacity: 0.5, marginBottom: 12 }}>
+            Self-declared — nobody invited these people, they asked for access with a verified sign-in. Review before approving.
+          </p>
+          {pendingRequests.map(r => (
+            <div key={r.id} style={{ background: 'rgba(226,109,52,0.12)', border: '1px solid rgba(226,109,52,0.4)', borderRadius: 12, padding: 14, marginBottom: 10 }}>
+              <div style={{ fontWeight: 600 }}>{r.requester_email}</div>
+              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>
+                Requesting {r.space_id ? 'Space Admin' : `Zone Publisher — ${zonePath(r.zone_id, zones) || 'zone'}`}
+              </div>
+              {r.note && <div style={{ fontSize: 12, opacity: 0.6, fontStyle: 'italic', marginBottom: 8 }}>"{r.note}"</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => approveRequest(r.id)} style={{ flex: 1, padding: 10, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>Approve</button>
+                <button onClick={() => denyRequest(r.id)} style={{ flex: 1, padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: '#F5EFE3', border: 'none' }}>Deny</button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
       <h2 style={{ fontSize: 14, opacity: 0.6, marginBottom: 4 }}>Space Admins</h2>
       <p style={{ fontSize: 11, opacity: 0.5, marginBottom: 12 }}>
         Full control over this space and its zones — deans, heads of department.
