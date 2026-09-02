@@ -93,6 +93,15 @@ across devices) is deliberately deferred, not built yet.
 
 ## Known gaps (flagged, not yet solved)
 
+- **Fixed but worth remembering the pattern**: organization creation
+  silently failed for a while — the RLS policy checked "does this org
+  already exist and do you own it," which can never be true for a
+  brand-new org. Split into a plain ownership check for INSERT.
+  Every operator create action (org, space, zone, opportunity,
+  resource, activity, team invite) now surfaces the real error message
+  via `window.alert()` instead of failing silently — this class of bug
+  should never again look like "the button just doesn't work."
+
 - `profiles.phone` / `profiles.linkedin` are still publicly
   SELECT-able at the row level — RLS is row-level, not column-level, so
   the app-layer tier-2 gating isn't backed by a real database
