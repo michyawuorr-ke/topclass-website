@@ -1,73 +1,100 @@
 import React from 'react';
-import { Message } from '../types';
 
 export function ConnectionDetailModal({
   selectedConnection, onClose, profileId,
-  messages, messageInput, setMessageInput, sendMessage, peerStation,
   stickyNoteText, setStickyNoteText, saveStickyNote,
   showTier2Options, setShowTier2Options,
   reqPhoneCheckbox, setReqPhoneCheckbox, reqLinkedinCheckbox, setReqLinkedinCheckbox,
-  submitTier2Request,
+  submitTier2Request, onOpenChat, getNameFor,
 }: {
   selectedConnection: any; onClose: () => void; profileId: string;
-  messages: Message[]; messageInput: string; setMessageInput: (v: string) => void; sendMessage: () => void; peerStation: string;
   stickyNoteText: string; setStickyNoteText: (v: string) => void; saveStickyNote: () => void;
   showTier2Options: boolean; setShowTier2Options: (v: boolean) => void;
   reqPhoneCheckbox: boolean; setReqPhoneCheckbox: (v: boolean) => void;
   reqLinkedinCheckbox: boolean; setReqLinkedinCheckbox: (v: boolean) => void;
   submitTier2Request: () => void;
+  onOpenChat: (recipientId: string) => void;
+  getNameFor: (id: string) => string;
 }) {
+  const otherId = selectedConnection.connected_profile_id;
+  const otherName = getNameFor(otherId);
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 40 }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'flex-end', zIndex: 40 }}
       onClick={onClose}>
-      <div style={{ background: '#1C1C2E', width: '100%', maxHeight: '85vh', overflowY: 'auto', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 }} onClick={e => e.stopPropagation()}>
+      <div style={{
+        background: '#1C1C2E', width: '100%', maxHeight: '80vh', overflowY: 'auto',
+        borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: '20px 20px 32px',
+      }} onClick={e => e.stopPropagation()}>
 
-        {/* Chat unlocks only after a QR scan confirms an in-person meetup.
-            Before that, show live coordination (where they are) instead. */}
-        {selectedConnection.qr_scanned ? (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, opacity: 0.6, letterSpacing: 1, marginBottom: 8 }}>CHAT</div>
-            <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-              {messages.length === 0 && <p style={{ opacity: 0.5, fontSize: 13 }}>You met — say hello.</p>}
-              {messages.map(m => (
-                <div key={m.id} style={{
-                  alignSelf: m.sender_profile_id === profileId ? 'flex-end' : 'flex-start',
-                  background: m.sender_profile_id === profileId ? '#E26D34' : 'rgba(255,255,255,0.08)',
-                  color: m.sender_profile_id === profileId ? '#fff' : '#F5EFE3',
-                  padding: '8px 12px', borderRadius: 12, maxWidth: '80%', fontSize: 13,
-                }}>
-                  {m.body}
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input value={messageInput} onChange={e => setMessageInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') sendMessage(); }}
-                placeholder="Message..." style={{ flex: 1, padding: 10, borderRadius: 8, border: 'none' }} />
-              <button onClick={sendMessage} style={{ padding: '10px 16px', borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>Send</button>
-            </div>
-          </div>
-        ) : (
-          <div style={{ marginBottom: 16, fontSize: 13, opacity: 0.75, background: 'rgba(255,255,255,0.06)', padding: 12, borderRadius: 10 }}>
-            Chat opens once you scan to confirm you've met in person.
-            {peerStation ? ` They're currently at: ${peerStation}.` : ''}
-          </div>
-        )}
+        <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 2, margin: '0 auto 20px' }} />
 
-        <textarea placeholder="Sticky note..." value={stickyNoteText} onChange={e => setStickyNoteText(e.target.value)}
-          style={{ width: '100%', minHeight: 80, padding: 10, marginBottom: 8, borderRadius: 8, border: 'none' }} />
-        <button onClick={saveStickyNote} style={{ width: '100%', padding: 10, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none', marginBottom: 8 }}>Save note</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 22, background: '#D4AF37', color: '#1C1C2E',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18,
+          }}>
+            {otherName[0]?.toUpperCase() || '?'}
+          </div>
+          <div style={{ fontWeight: 700, fontSize: 17, color: '#F5EFE3' }}>{otherName}</div>
+        </div>
+
+        <button onClick={() => { onClose(); onOpenChat(otherId); }}
+          style={{
+            width: '100%', padding: '11px', borderRadius: 10, marginBottom: 12,
+            background: '#E26D34', color: '#fff', border: 'none', fontWeight: 600,
+            fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          Message {otherName.split(' ')[0]}
+        </button>
+
+        <div style={{ fontSize: 11, opacity: 0.5, letterSpacing: 1, marginBottom: 6 }}>STICKY NOTE</div>
+        <textarea
+          placeholder="Add a private note about this connection…"
+          value={stickyNoteText}
+          onChange={e => setStickyNoteText(e.target.value)}
+          style={{
+            width: '100%', minHeight: 80, padding: 12, marginBottom: 8, borderRadius: 10,
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+            color: '#F5EFE3', fontSize: 14, resize: 'none', boxSizing: 'border-box',
+          }}
+        />
+        <button onClick={saveStickyNote} style={{
+          width: '100%', padding: 10, borderRadius: 10, background: 'rgba(255,255,255,0.08)',
+          color: '#F5EFE3', border: 'none', marginBottom: 12, cursor: 'pointer', fontSize: 14,
+        }}>
+          Save note
+        </button>
+
         {!showTier2Options ? (
-          <button onClick={() => setShowTier2Options(true)} style={{ width: '100%', padding: 10, borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: '#F5EFE3', border: 'none' }}>Request contact info</button>
+          <button onClick={() => setShowTier2Options(true)} style={{
+            width: '100%', padding: 10, borderRadius: 10,
+            background: 'rgba(255,255,255,0.06)', color: '#F5EFE3', border: 'none', cursor: 'pointer', fontSize: 14,
+          }}>
+            Request contact info
+          </button>
         ) : (
-          <div>
-            <label style={{ display: 'block', marginBottom: 6 }}><input type="checkbox" checked={reqPhoneCheckbox} onChange={e => setReqPhoneCheckbox(e.target.checked)} /> Phone</label>
-            <label style={{ display: 'block', marginBottom: 6 }}><input type="checkbox" checked={reqLinkedinCheckbox} onChange={e => setReqLinkedinCheckbox(e.target.checked)} /> LinkedIn</label>
-            <button onClick={submitTier2Request} style={{ width: '100%', padding: 10, borderRadius: 8, background: '#E26D34', color: '#fff', border: 'none' }}>Send request</button>
+          <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 14 }}>
+            <div style={{ fontSize: 13, marginBottom: 10, opacity: 0.7 }}>What would you like to request?</div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, color: '#F5EFE3', fontSize: 14 }}>
+              <input type="checkbox" checked={reqPhoneCheckbox} onChange={e => setReqPhoneCheckbox(e.target.checked)} />
+              Phone number
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: '#F5EFE3', fontSize: 14 }}>
+              <input type="checkbox" checked={reqLinkedinCheckbox} onChange={e => setReqLinkedinCheckbox(e.target.checked)} />
+              LinkedIn
+            </label>
+            <button onClick={submitTier2Request} style={{
+              width: '100%', padding: 10, borderRadius: 10, background: '#E26D34', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600,
+            }}>
+              Send request
+            </button>
           </div>
         )}
       </div>
     </div>
   );
 }
-
