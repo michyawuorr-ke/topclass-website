@@ -114,7 +114,8 @@ export default function OperatorDashboard() {
         contact_email: orgForm.contact_email || null, contact_phone: orgForm.contact_phone || null,
       })
       .select().single();
-    if (!error && data) setOrg(data);
+    if (error) { window.alert(`Could not create organization: ${error.message}`); return; }
+    if (data) setOrg(data);
   };
 
   // ---- Team ----
@@ -133,9 +134,10 @@ export default function OperatorDashboard() {
 
   const inviteMember = async () => {
     if (!inviteEmail.trim() || !org) return;
-    await supabase.from('organization_members').insert({
+    const { error } = await supabase.from('organization_members').insert({
       organization_id: org.id, invite_email: inviteEmail.trim(), role: inviteRole,
     });
+    if (error) { window.alert(`Could not send invite: ${error.message}`); return; }
     setInviteEmail('');
     fetchMembers();
   };
@@ -152,7 +154,8 @@ export default function OperatorDashboard() {
     const { data, error } = await supabase.from('spaces')
       .insert({ name: newSpaceName.trim(), type: newSpaceType, organization_id: org.id })
       .select().single();
-    if (!error && data) {
+    if (error) { window.alert(`Could not create space: ${error.message}`); return; }
+    if (data) {
       setSpaces(prev => [...prev, data]);
       setNewSpaceName('');
     }
@@ -166,11 +169,12 @@ export default function OperatorDashboard() {
 
   const addZone = async () => {
     if (!zoneForm.name.trim() || !activeSpace) return;
-    await supabase.from('zones').insert({
+    const { error } = await supabase.from('zones').insert({
       space_id: activeSpace.id, name: zoneForm.name,
       description: zoneForm.description || null, capacity: zoneForm.capacity || null,
       parent_zone_id: zoneForm.parent_zone_id || null,
     });
+    if (error) { window.alert(`Could not add zone: ${error.message}`); return; }
     setZoneForm({ name: '', description: '', capacity: '', parent_zone_id: '' });
     fetchZones(activeSpace);
   };
@@ -277,7 +281,7 @@ export default function OperatorDashboard() {
 
   const addOpportunity = async () => {
     if (!oppForm.title.trim() || !activeSpace) return;
-    await supabase.from('opportunities').insert({
+    const { error } = await supabase.from('opportunities').insert({
       space_id: activeSpace.id,
       title: oppForm.title, type: oppForm.type, provider: oppForm.provider || null,
       description: oppForm.description || null, eligibility: oppForm.eligibility || null,
@@ -287,25 +291,27 @@ export default function OperatorDashboard() {
       zone_id: oppForm.zone_id || null, location: oppForm.location || null, status: oppForm.status,
       image_url: oppForm.image_url || null,
     });
+    if (error) { window.alert(`Could not add opportunity: ${error.message}`); return; }
     setOppForm({ ...emptyOpportunity });
     fetchContent(activeSpace);
   };
 
   const addResource = async () => {
     if (!resForm.name.trim() || !activeSpace) return;
-    await supabase.from('resources').insert({
+    const { error } = await supabase.from('resources').insert({
       space_id: activeSpace.id,
       name: resForm.name, owner: resForm.owner || null, description: resForm.description || null,
       availability: resForm.availability || null, capacity: resForm.capacity || null,
       zone_id: resForm.zone_id || null, image_url: resForm.image_url || null,
     });
+    if (error) { window.alert(`Could not add resource: ${error.message}`); return; }
     setResForm({ ...emptyResource });
     fetchContent(activeSpace);
   };
 
   const addActivity = async () => {
     if (!actForm.title.trim() || !activeSpace) return;
-    await supabase.from('activities').insert({
+    const { error } = await supabase.from('activities').insert({
       space_id: activeSpace.id,
       title: actForm.title, host: actForm.host || null, description: actForm.description || null,
       category: actForm.category || null,
@@ -314,6 +320,7 @@ export default function OperatorDashboard() {
       zone_id: actForm.zone_id || null, capacity: actForm.capacity || null,
       registration_link: actForm.registration_link || null, image_url: actForm.image_url || null,
     });
+    if (error) { window.alert(`Could not add activity: ${error.message}`); return; }
     setActForm({ ...emptyActivity });
     fetchContent(activeSpace);
   };
