@@ -20,6 +20,8 @@ export interface Zone {
 }
 export interface Item { id: string; [key: string]: any; }
 export interface Member { id: string; organization_id: string; user_id: string | null; invite_email: string; role: string; created_at: string; }
+export interface SpaceAdmin { id: string; space_id: string; user_id: string | null; invite_email: string; created_at: string; }
+export interface ZonePublisher { id: string; zone_id: string; user_id: string | null; invite_email: string; created_at: string; }
 export interface Application {
   id: string; opportunity_id: string; profile_id: string; note: string | null; status: string; created_at: string;
   opportunities?: { title: string };

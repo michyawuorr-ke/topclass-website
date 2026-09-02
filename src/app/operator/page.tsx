@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Org, Space, Zone, Item, Member, Application, emptyOpportunity, emptyResource, emptyActivity } from './types';
+import { Org, Space, Zone, Item, Member, SpaceAdmin, ZonePublisher, Application, emptyOpportunity, emptyResource, emptyActivity } from './types';
 import { AuthGate } from './components/AuthGate';
 import { OrgSetupForm } from './components/OrgSetupForm';
 import { SpacesList } from './components/SpacesList';
 import { TeamPanel } from './components/TeamPanel';
+import { SpaceTeamPanel } from './components/SpaceTeamPanel';
 import { ZonesPanel } from './components/ZonesPanel';
 import { OpportunitiesPanel } from './components/OpportunitiesPanel';
 import { ResourcesPanel } from './components/ResourcesPanel';
@@ -29,7 +30,7 @@ export default function OperatorDashboard() {
   const [newSpaceType, setNewSpaceType] = useState('university');
   const [activeSpace, setActiveSpace] = useState<Space | null>(null);
 
-  type ContentTab = 'home' | 'zones' | 'opportunities' | 'resources' | 'activities' | 'applications' | 'people';
+  type ContentTab = 'home' | 'zones' | 'opportunities' | 'resources' | 'activities' | 'applications' | 'people' | 'team';
   const [contentTab, setContentTab] = useState<ContentTab>('home');
 
   const [zones, setZones] = useState<Zone[]>([]);
@@ -161,6 +162,43 @@ export default function OperatorDashboard() {
     }
   };
 
+  // ---- Space/Zone team (Tier 2/3 delegated admin) ----
+  const [spaceAdmins, setSpaceAdmins] = useState<SpaceAdmin[]>([]);
+  const [spaceAdminInviteEmail, setSpaceAdminInviteEmail] = useState('');
+  const [zonePublishers, setZonePublishers] = useState<ZonePublisher[]>([]);
+  const [zonePublisherInviteEmail, setZonePublisherInviteEmail] = useState('');
+  const [zonePublisherZoneId, setZonePublisherZoneId] = useState('');
+
+  const fetchSpaceTeam = async (space: Space) => {
+    const [{ data: admins }, { data: publishers }] = await Promise.all([
+      supabase.from('space_admins').select('*').eq('space_id', space.id),
+      supabase.from('zone_publishers').select('*, zones!inner(space_id)').eq('zones.space_id', space.id),
+    ]);
+    setSpaceAdmins(admins || []);
+    setZonePublishers(publishers || []);
+  };
+
+  const inviteSpaceAdmin = async () => {
+    if (!spaceAdminInviteEmail.trim() || !activeSpace) return;
+    const { error } = await supabase.from('space_admins').insert({
+      space_id: activeSpace.id, invite_email: spaceAdminInviteEmail.trim(),
+    });
+    if (error) { window.alert(`Could not add space admin: ${error.message}`); return; }
+    setSpaceAdminInviteEmail('');
+    fetchSpaceTeam(activeSpace);
+  };
+
+  const inviteZonePublisher = async () => {
+    if (!zonePublisherInviteEmail.trim() || !zonePublisherZoneId || !activeSpace) return;
+    const { error } = await supabase.from('zone_publishers').insert({
+      zone_id: zonePublisherZoneId, invite_email: zonePublisherInviteEmail.trim(),
+    });
+    if (error) { window.alert(`Could not add zone publisher: ${error.message}`); return; }
+    setZonePublisherInviteEmail('');
+    setZonePublisherZoneId('');
+    fetchSpaceTeam(activeSpace);
+  };
+
   // ---- Zones ----
   const fetchZones = async (space: Space) => {
     const { data } = await supabase.from('zones').select('*').eq('space_id', space.id);
@@ -234,7 +272,7 @@ export default function OperatorDashboard() {
   };
 
   useEffect(() => {
-    if (activeSpace) { fetchZones(activeSpace); fetchContent(activeSpace); }
+    if (activeSpace) { fetchZones(activeSpace); fetchContent(activeSpace); fetchSpaceTeam(activeSpace); }
   }, [activeSpace]);
 
   // Depends on `opportunities` being loaded (for the pending-applications
@@ -375,16 +413,23 @@ export default function OperatorDashboard() {
       )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' }}>
-        {(['home', 'people', 'zones', 'opportunities', 'applications', 'resources', 'activities'] as ContentTab[]).map(tab => (
+        {(['home', 'people', 'zones', 'opportunities', 'applications', 'resources', 'activities', 'team'] as ContentTab[]).map(tab => (
           <button key={tab} onClick={() => setContentTab(tab)}
             style={{ padding: '8px 14px', borderRadius: 20, border: 'none', whiteSpace: 'nowrap', background: contentTab === tab ? '#D4AF37' : 'rgba(255,255,255,0.08)', color: contentTab === tab ? '#1C1C2E' : '#F5EFE3' }}>
-            {tab === 'zones' ? 'Rooms / Zones' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {tab === 'zones' ? 'Rooms / Zones' : tab === 'team' ? 'Space Team' : tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
       </div>
 
       {contentTab === 'home' && <HomePanel stats={homeStats} />}
       {contentTab === 'people' && <PeoplePanel people={presentPeople} />}
+      {contentTab === 'team' && (
+        <SpaceTeamPanel
+          spaceAdmins={spaceAdmins} spaceAdminInviteEmail={spaceAdminInviteEmail} setSpaceAdminInviteEmail={setSpaceAdminInviteEmail} inviteSpaceAdmin={inviteSpaceAdmin}
+          zonePublishers={zonePublishers} zonePublisherInviteEmail={zonePublisherInviteEmail} setZonePublisherInviteEmail={setZonePublisherInviteEmail}
+          zonePublisherZoneId={zonePublisherZoneId} setZonePublisherZoneId={setZonePublisherZoneId} inviteZonePublisher={inviteZonePublisher} zones={zones}
+        />
+      )}
       {contentTab === 'zones' && <ZonesPanel zones={zones} zoneForm={zoneForm} setZoneForm={setZoneForm} addZone={addZone} />}
       {contentTab === 'opportunities' && (
         <OpportunitiesPanel
