@@ -1,10 +1,11 @@
 import type { CSSProperties } from 'react';
 
+export type OperatorRole = 'super_admin' | 'space_admin' | 'zone_operator' | 'none';
+
 export interface Org {
   id: string; name: string; owner_id: string; approved: boolean;
   description?: string; website?: string; contact_email?: string; contact_phone?: string;
   email_domain?: string | null;
-  // Entry-flow configuration (see src/app/entry/) — optional override layer
   environment_type?: string;
   logo_url?: string;
   primary_color?: string;
@@ -34,10 +35,6 @@ export interface Application {
   profiles?: { name: string; title: string; domain: string };
 }
 
-// Kept deliberately narrow — University and Innovation Hub are the two
-// verticals actually being piloted. The fuller EntryConfig system
-// (src/app/entry/types.ts) already supports Hotel/Coworking/Custom in
-// code — enabling them here later is a one-line change, not new work.
 export const SPACE_TYPES = ['university', 'innovation_hub'];
 export const ENVIRONMENT_TYPES = [
   { value: 'university',     label: 'University / Campus' },
@@ -68,7 +65,6 @@ export const emptyActivity = {
 export const inputStyle: CSSProperties = { width: '100%', padding: 10, marginBottom: 8, borderRadius: 8, border: 'none', fontFamily: 'inherit' };
 export const labelStyle: CSSProperties = { fontSize: 11, opacity: 0.6, marginBottom: 4, display: 'block' };
 
-// Builds "Faculty > Building > Room" style path labels from a flat zone list
 export function zonePath(zoneId: string | null | undefined, list: Zone[]): string {
   if (!zoneId) return '';
   const z = list.find(zz => zz.id === zoneId);
@@ -76,4 +72,3 @@ export function zonePath(zoneId: string | null | undefined, list: Zone[]): strin
   const parent = z.parent_zone_id ? zonePath(z.parent_zone_id, list) : '';
   return parent ? `${parent} > ${z.name}` : z.name;
 }
-
