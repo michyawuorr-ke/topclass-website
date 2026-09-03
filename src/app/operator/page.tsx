@@ -8,6 +8,7 @@ import { RequestAccessForm } from './components/RequestAccessForm';
 import { SuperAdminView } from './components/SuperAdminView';
 import { SpaceAdminView } from './components/SpaceAdminView';
 import { ZoneOperatorView } from './components/ZoneOperatorView';
+import { TeamLeadView } from './components/TeamLeadView';
 
 export default function OperatorPage() {
   const [session, setSession]           = useState<any>(null);
@@ -27,7 +28,7 @@ export default function OperatorPage() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const { role, org, managedSpace, managedZones, loading: roleLoading } =
+  const { role, org, managedSpace, managedZones, managedTeams, loading: roleLoading } =
     useOperatorRole(session?.user?.id ?? null);
 
   // Domain-match: if no org found, check if their email domain matches an existing org
@@ -124,6 +125,10 @@ export default function OperatorPage() {
     return <ZoneOperatorView org={org} space={managedSpace} zones={managedZones} signOut={signOut} />;
   }
 
+  if (role === 'team_lead' && managedTeams.length > 0) {
+    return <TeamLeadView org={org} space={managedSpace} teams={managedTeams} signOut={signOut} />;
+  }
+
   // ── Signed in, org exists, but no role assigned yet ──
   return (
     <div style={{ minHeight: '100vh', background: '#13131F', color: '#F5EFE3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', padding: 32, textAlign: 'center' }}>
@@ -139,3 +144,4 @@ export default function OperatorPage() {
     </div>
   );
 }
+

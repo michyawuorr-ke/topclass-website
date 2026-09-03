@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Org, Space, Member, inputStyle, labelStyle } from '../types';
+import { Org, Space, Member, SpaceAdmin, inputStyle, labelStyle } from '../types';
 import { OperatorShell } from './OperatorShell';
 import { StatGrid, Stat } from './StatGrid';
 import { SectionHeader } from './SectionHeader';
@@ -23,8 +23,13 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
   const [tab, setTab] = useState<Tab>('overview');
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [spaceAdminsBySpace, setSpaceAdminsBySpace] = useState<Record<string, SpaceAdmin[]>>({});
+  const [zoneCounts, setZoneCounts] = useState<Record<string, number>>({});
   const [newSpaceName, setNewSpaceName] = useState('');
   const [newSpaceType, setNewSpaceType] = useState('university');
+  const [newSpaceCode, setNewSpaceCode] = useState('');
+  const [newSpaceDomain, setNewSpaceDomain] = useState('');
+  const [newDeanEmail, setNewDeanEmail] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('admin');
   const [ssoEmail, setSsoEmail] = useState(org.email_domain || '');
@@ -45,10 +50,18 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
     const spaceIds = (sp || []).map((s: any) => s.id);
     let users = 0, conns = 0, apps = 0;
     if (spaceIds.length > 0) {
-      const [{ count: u }, { count: c }] = await Promise.all([
+      const [{ count: u }, { count: c }, { data: sa }, { data: zn }] = await Promise.all([
         supabase.from('presence').select('id', { count: 'exact', head: true }).in('space_id', spaceIds),
         supabase.from('connections').select('id', { count: 'exact', head: true }).in('space_id', spaceIds).eq('handshake_accepted', true),
+        supabase.from('space_admins').select('*').in('space_id', spaceIds),
+        supabase.from('zones').select('id, space_id').in('space_id', spaceIds),
       ]);
+      const byspace: Record<string, SpaceAdmin[]> = {};
+      (sa || []).forEach((a: any) => { (byspace[a.space_id] ||= []).push(a); });
+      setSpaceAdminsBySpace(byspace);
+      const zcounts: Record<string, number> = {};
+      (zn || []).forEach((z: any) => { zcounts[z.space_id] = (zcounts[z.space_id] || 0) + 1; });
+      setZoneCounts(zcounts);
       const { data: opps } = await supabase.from('opportunities').select('id').in('space_id', spaceIds);
       const oppIds = (opps || []).map((o: any) => o.id);
       if (oppIds.length > 0) {
@@ -69,11 +82,20 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
   const createSpace = async () => {
     if (!newSpaceName.trim()) return;
     const { data, error } = await supabase.from('spaces')
-      .insert({ name: newSpaceName.trim(), type: newSpaceType, organization_id: org.id })
+      .insert({
+        name: newSpaceName.trim(), type: newSpaceType, organization_id: org.id,
+        space_code: newSpaceCode.trim() || null,
+        domain_restriction: newSpaceDomain.trim().toLowerCase() || null,
+      })
       .select().single();
     if (error) { window.alert(error.message); return; }
+    if (newDeanEmail.trim()) {
+      const { error: deanErr } = await supabase.from('space_admins').insert({ space_id: data.id, invite_email: newDeanEmail.trim() });
+      if (deanErr) window.alert(`Space created, but dean invite failed: ${deanErr.message}`);
+    }
     setSpaces(prev => [...prev, data]);
-    setNewSpaceName('');
+    setNewSpaceName(''); setNewSpaceCode(''); setNewSpaceDomain(''); setNewDeanEmail('');
+    loadAll();
   };
 
   const archiveSpace = async (id: string) => {
@@ -139,7 +161,7 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
       {/* ── Spaces ── */}
       {tab === 'spaces' && (
         <>
-          <SectionHeader title="Create a space" sub="Each faculty, library, or hub gets its own space." />
+          <SectionHeader title="Space Creation Drawer" sub="Each School, faculty, or hub gets its own top-level Space, with its own code, domain binding, and delegated lead." />
           <label style={lbl}>Space name *</label>
           <input value={newSpaceName} onChange={e => setNewSpaceName(e.target.value)} placeholder="e.g. School of Business" style={inp()} />
           <label style={lbl}>Type</label>
@@ -147,24 +169,45 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
             <option value="university">University / Faculty</option>
             <option value="innovation_hub">Innovation Hub</option>
           </select>
-          <button onClick={createSpace} style={primaryBtn}>Create space</button>
+          <label style={lbl}>Space code</label>
+          <input value={newSpaceCode} onChange={e => setNewSpaceCode(e.target.value)} placeholder="e.g. SOB" style={inp()} />
+          <label style={lbl}>Domain binding</label>
+          <input value={newSpaceDomain} onChange={e => setNewSpaceDomain(e.target.value)} placeholder="e.g. business.uonbi.ac.ke" style={inp()} />
+          <label style={lbl}>Space Lead — Dean / Head of School email</label>
+          <input value={newDeanEmail} onChange={e => setNewDeanEmail(e.target.value)} placeholder="dean@business.uonbi.ac.ke" style={inp()} />
+          <button onClick={createSpace} style={primaryBtn}>Create space &amp; dispatch invite</button>
+          <p style={{ fontSize: 11, opacity: 0.4, marginBottom: 24 }}>
+            The Space Lead gets full control over this Space — its zones, teams, and content — the first time they sign in at /operator with that email.
+          </p>
 
-          <div style={{ marginTop: 28 }}>
-            <SectionHeader title="All spaces" />
-            {spaces.map(s => (
-              <div key={s.id} style={card}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{s.name}</div>
-                    <div style={{ fontSize: 11, opacity: 0.4, marginTop: 3 }}>{s.type}</div>
-                    <div style={{ fontSize: 11, opacity: 0.35, marginTop: 2 }}>
-                      /?space={s.id}
+          <div style={{ marginTop: 8 }}>
+            <SectionHeader title="Master Space Directory" sub="Every School created, its assigned lead, active zones, and status." />
+            {spaces.map(s => {
+              const leads = spaceAdminsBySpace[s.id] || [];
+              return (
+                <div key={s.id} style={card}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{s.name}</div>
+                      <div style={{ fontSize: 11, opacity: 0.4, marginTop: 3 }}>
+                        {s.type}{s.space_code ? ` · ${s.space_code}` : ''}{s.domain_restriction ? ` · @${s.domain_restriction}` : ''}
+                      </div>
+                      <div style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>
+                        Lead: {leads.length > 0 ? leads.map(l => l.invite_email).join(', ') : 'unassigned'}
+                      </div>
+                      <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>
+                        {zoneCounts[s.id] || 0} active zone{(zoneCounts[s.id] || 0) === 1 ? '' : 's'} ·{' '}
+                        <span style={{ color: org.approved ? '#1D9E75' : '#D4AF37' }}>{org.approved ? 'Live' : 'Pending approval'}</span>
+                      </div>
+                      <div style={{ fontSize: 11, opacity: 0.35, marginTop: 2 }}>
+                        /?space={s.id}
+                      </div>
                     </div>
+                    <button onClick={() => archiveSpace(s.id)} style={ghostBtn}>Archive</button>
                   </div>
-                  <button onClick={() => archiveSpace(s.id)} style={ghostBtn}>Archive</button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
@@ -215,3 +258,4 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
     </OperatorShell>
   );
 }
+

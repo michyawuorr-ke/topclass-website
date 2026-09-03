@@ -338,3 +338,48 @@ Chat and real auth were added mid-sequence, ahead of the original
 order, because chat's privacy correctness turned out to depend on real
 auth existing — not a deviation, a dependency that surfaced once chat
 was built.
+
+## Spaces & Teams (department/team architecture)
+
+Split "Zones" into two genuinely separate tracks, per the Spaces &
+Teams spec: **physical** zones (rooms/buildings — unchanged table,
+gained a `building_tag`) generate door QR codes for check-in;
+**operational** teams (departments/crews — new `teams` table) own
+schedules, operator invites, scoped opportunities, live roster, and
+announcements. A team can point at a home zone but is not a renamed
+zone.
+
+New tables: `teams`, `team_leads` (HOD), `team_operators`
+(lecturer/TA), `schedules`, `announcements`. `opportunities` gained
+`team_id`. `spaces` gained `space_code`/`domain_restriction`; `zones`
+gained `building_tag`. Cascading RLS via `is_team_lead()` /
+`can_operate_team()`, same pattern as `is_space_admin()`. A
+`redeem_team_join_code()` function lets lecturers/TAs self-onboard
+with a 6-digit code instead of waiting on an email invite.
+
+Super Admin's Space Creation Drawer now writes space code + domain
+binding, and auto-invites the dean/lead as `space_admins` on
+creation. Master Space Directory shows lead, active zone count, and
+status. Space Admin's old "Team" tab (access-control invites) was
+renamed to **Admins** to free up "Teams" for the new department
+concept, which now has its own tab with a full department workspace
+(Overview/Schedule/Lecturers-TAs/Opportunities/Roster/Notices). A new
+`team_lead` role tier routes HODs to their own dashboard
+(`TeamLeadView`, mirrors `ZoneOperatorView`'s pattern) — plain
+lecturers/TAs don't have a routed dashboard yet, just working
+invite/join-code rows.
+
+Deliberately deferred:
+- No true schedule-time-window attendance log yet. "Live roster"
+  reads `presence.zone_id` against the team's `primary_zone_id` —
+  real, but not correlated against a specific scheduled slot.
+- Room door QR codes encode `${origin}/?space=<id>&zone=<id>`, but
+  `EntryFlow` doesn't consume the `zone` param yet — scanning one
+  today just enters the space, not the room. Printing them now is
+  still useful; wiring participant auto-set-zone-on-scan is a
+  follow-up.
+- No routed dashboard for plain team_operators (non-lead
+  lecturers/TAs) — a lighter operator-only view is a natural next
+  step once there's demand for it.
+
+

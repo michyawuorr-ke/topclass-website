@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import type { Team } from '../types';
 
-export type OperatorRole = 'super_admin' | 'space_admin' | 'zone_operator' | 'none';
+export type OperatorRole = 'super_admin' | 'space_admin' | 'zone_operator' | 'team_lead' | 'none';
 
 export interface Org {
   id: string; name: string; owner_id: string; approved: boolean;
@@ -17,6 +18,7 @@ export interface RoleContext {
   org: Org | null;
   managedSpace: Space | null;
   managedZones: Zone[];
+  managedTeams: Team[];
   loading: boolean;
 }
 
@@ -25,6 +27,7 @@ export function useOperatorRole(userId: string | null): RoleContext {
   const [org, setOrg]                 = useState<Org | null>(null);
   const [managedSpace, setManagedSpace] = useState<Space | null>(null);
   const [managedZones, setManagedZones] = useState<Zone[]>([]);
+  const [managedTeams, setManagedTeams] = useState<Team[]>([]);
   const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
@@ -106,9 +109,30 @@ export function useOperatorRole(userId: string | null): RoleContext {
       }
     }
 
+    // 6. Team lead — has team_leads rows (HOD/department lead)
+    const { data: tlRows } = await supabase
+      .from('team_leads').select('team_id').eq('user_id', uid);
+    if (tlRows && tlRows.length > 0) {
+      const teamIds = tlRows.map((r: any) => r.team_id);
+      const { data: teams } = await supabase.from('teams').select('*').in('id', teamIds);
+      if (teams && teams.length > 0) {
+        const { data: teamSpace } = await supabase
+          .from('spaces').select('*').eq('id', teams[0].space_id).maybeSingle();
+        const { data: teamOrg } = teamSpace
+          ? await supabase.from('organizations').select('*').eq('id', teamSpace.organization_id).maybeSingle()
+          : { data: null };
+        setOrg(teamOrg || null);
+        setManagedSpace(teamSpace || null);
+        setManagedTeams(teams);
+        setRole('team_lead');
+        setLoading(false); return;
+      }
+    }
+
     setRole('none');
     setLoading(false);
   };
 
-  return { role, org, managedSpace, managedZones, loading };
+  return { role, org, managedSpace, managedZones, managedTeams, loading };
 }
+
