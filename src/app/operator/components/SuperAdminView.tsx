@@ -26,7 +26,6 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
   const [spaceAdminsBySpace, setSpaceAdminsBySpace] = useState<Record<string, SpaceAdmin[]>>({});
   const [zoneCounts, setZoneCounts] = useState<Record<string, number>>({});
   const [newSpaceName, setNewSpaceName] = useState('');
-  const [newSpaceType, setNewSpaceType] = useState('university');
   const [newSpaceCode, setNewSpaceCode] = useState('');
   const [newSpaceDomain, setNewSpaceDomain] = useState('');
   const [newDeanEmail, setNewDeanEmail] = useState('');
@@ -83,7 +82,6 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
     if (!newSpaceName.trim()) return;
     const { data, error } = await supabase.from('spaces')
       .insert({
-        name: newSpaceName.trim(), type: newSpaceType, organization_id: org.id,
         space_code: newSpaceCode.trim() || null,
         domain_restriction: newSpaceDomain.trim().toLowerCase() || null,
       })
@@ -165,9 +163,6 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
           <label style={lbl}>Space name *</label>
           <input value={newSpaceName} onChange={e => setNewSpaceName(e.target.value)} placeholder="e.g. School of Business" style={inp()} />
           <label style={lbl}>Type</label>
-          <select value={newSpaceType} onChange={e => setNewSpaceType(e.target.value)} style={inp()}>
-            <option value="university">University / Faculty</option>
-            <option value="innovation_hub">Innovation Hub</option>
           </select>
           <label style={lbl}>Space code</label>
           <input value={newSpaceCode} onChange={e => setNewSpaceCode(e.target.value)} placeholder="e.g. SOB" style={inp()} />
