@@ -162,8 +162,6 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
           <SectionHeader title="Space Creation Drawer" sub="Each School, faculty, or hub gets its own top-level Space, with its own code, domain binding, and delegated lead." />
           <label style={lbl}>Space name *</label>
           <input value={newSpaceName} onChange={e => setNewSpaceName(e.target.value)} placeholder="e.g. School of Business" style={inp()} />
-          <label style={lbl}>Type</label>
-          </select>
           <label style={lbl}>Space code</label>
           <input value={newSpaceCode} onChange={e => setNewSpaceCode(e.target.value)} placeholder="e.g. SOB" style={inp()} />
           <label style={lbl}>Domain binding</label>
