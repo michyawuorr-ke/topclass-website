@@ -103,7 +103,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
   const [oppForm, setOppForm] = useState({ ...emptyOpportunity });
   const [actForm, setActForm] = useState({ ...emptyActivity });
   const [resForm, setResForm] = useState({ ...emptyResource });
-  const [zoneAdminInviteEmail, setZoneAdminInviteEmail] = useState('');
+  const [zoneAdminInviteEmail, setSpaceAdminInviteEmail] = useState('');
 
   useEffect(() => { loadAll(); }, [space.id]);
 
@@ -244,10 +244,10 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
   };
 
   const inviteZoneAdmin = async () => {
-    if (!zoneAdminInviteEmail.trim()) return;
-    const { error } = await supabase.from('zone_publishers').insert({ space_id: space.id, invite_email: zoneAdminInviteEmail.trim() });
+    if (!spaceAdminInviteEmail.trim()) return;
+    const { error } = await supabase.from('space_admins').insert({ space_id: space.id, invite_email: spaceAdminInviteEmail.trim() });
     if (error) { window.alert(error.message); return; }
-    setZoneAdminInviteEmail(''); loadAll();
+    setSpaceAdminInviteEmail(''); loadAll();
   };
   const approveRequest = async (id: string) => {
     const { error } = await supabase.rpc('approve_access_request', { request_id: id });
@@ -290,7 +290,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
             </div>
           )}
 
-          <div style={{ fontWeight: 700, fontSize: 15, margin: '24px 0 12px' }}>Zone admins</div>
+          <div style={{ fontWeight: 700, fontSize: 15, margin: '24px 0 12px' }}>Space team</div>
           {pendingRequests.length > 0 && (
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 12, color: sub, marginBottom: 6 }}>Pending access requests</div>
@@ -318,8 +318,8 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
           ))}
           <label style={lbl}>Invite a zone admin</label>
           <div style={{ display: 'flex', gap: 8 }}>
-            <input value={zoneAdminInviteEmail} onChange={e => setZoneAdminInviteEmail(e.target.value)} placeholder="zoneadmin@school.edu" style={{ ...inp(), marginBottom: 0, flex: 1 }} />
-            <button onClick={inviteZoneAdmin} style={{ ...addBtn, whiteSpace: 'nowrap' }}>Invite</button>
+            <input value={spaceAdminInviteEmail} onChange={e => setSpaceAdminInviteEmail(e.target.value)} placeholder="zoneadmin@school.edu" style={{ ...inp(), marginBottom: 0, flex: 1 }} />
+            <button onClick={inviteSpaceAdmin} style={{ ...addBtn, whiteSpace: 'nowrap' }}>Invite</button>
           </div>
         </>
       )}
