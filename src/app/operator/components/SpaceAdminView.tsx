@@ -245,7 +245,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
 
   const inviteZoneAdmin = async () => {
     if (!zoneAdminInviteEmail.trim()) return;
-    const { error } = await supabase.from('space_admins').insert({ space_id: space.id, invite_email: zoneAdminInviteEmail.trim() });
+    const { error } = await supabase.from('zone_publishers').insert({ space_id: space.id, invite_email: zoneAdminInviteEmail.trim() });
     if (error) { window.alert(error.message); return; }
     setZoneAdminInviteEmail(''); loadAll();
   };
