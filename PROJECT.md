@@ -382,4 +382,49 @@ Deliberately deferred:
   lecturers/TAs) — a lighter operator-only view is a natural next
   step once there's demand for it.
 
+## Departments/Buildings restyle (superseding the section above)
+
+Rebuilt the Space Admin and HOD dashboards around a simpler mental
+model, replacing the Zones/Teams tabs from the previous pass:
+
+- **Space Admin** tabs are now Home / Departments / Buildings /
+  Publish / Applications. Departments are academic-only (the UI no
+  longer offers "crew"), created with name/description/capacity/
+  building, then opened afterward to invite the HOD as a separate
+  step. Buildings are a thin CRUD over top-level `zones` rows
+  (name + `building_tag` only) that departments reference by
+  dropdown via `primary_zone_id`. Publish merged Opportunities/
+  Activities/Resources into one tab with sub-tabs, all authored
+  through bottom-sheet Drawers instead of inline forms — this
+  content is space-wide (`team_id is null`), separate from what a
+  department publishes itself.
+- **HOD dashboard** was rebuilt as `HODView` (replacing
+  `TeamLeadView`, now deleted) with its own Home/Rooms/Schedules/
+  Publish/Applications/Notices tabs, same Drawer pattern. "Rooms"
+  are child `zones` of the department's building
+  (`parent_zone_id` = the department's `primary_zone_id`) — each
+  gets a door QR code, generated the same way the old ZonesPanel did.
+  Department-scoped opportunities/activities/resources use `team_id`.
+- Old `TeamsPanel`/`TeamWorkspace`/`ZonesPanel`/`SpaceTeamPanel`/
+  `TeamPanel`/`SpacesList` components deleted as dead code —
+  nothing referenced them after the rebuild. Space-admin delegation
+  (inviting co-admins) and pending access-request approval, which
+  used to live in a dedicated Admins tab, now live in a compact
+  section on Home instead — dropping that tab was implied by the
+  new 5-tab spec but the underlying capability still needed a home.
+- Schema additions: `teams.capacity`, `resources.team_id`,
+  `activities.team_id` (opportunities already had it), with RLS
+  extended the same way opportunities' was
+  (`can_operate_team(team_id)` added to each "Owner manage" policy).
+- Also fixed, in a prior untracked pass: RLS recursion on
+  `organization_members`' SELECT policy (was querying itself) that
+  broke team invites, space creation, and space_admin insert/delete
+  — rewritten to go through `is_org_member()` (security definer,
+  bypasses RLS) everywhere.
+
+Deliberately still deferred: true schedule-window attendance
+correlation, and room-QR-scan auto-entering the room (still just
+enters the space — see prior section, unchanged).
+
+
 

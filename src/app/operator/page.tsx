@@ -8,7 +8,7 @@ import { RequestAccessForm } from './components/RequestAccessForm';
 import { SuperAdminView } from './components/SuperAdminView';
 import { SpaceAdminView } from './components/SpaceAdminView';
 import { ZoneOperatorView } from './components/ZoneOperatorView';
-import { TeamLeadView } from './components/TeamLeadView';
+import { HODView } from './components/HODView';
 
 export default function OperatorPage() {
   const [session, setSession]           = useState<any>(null);
@@ -126,7 +126,7 @@ export default function OperatorPage() {
   }
 
   if (role === 'team_lead' && managedTeams.length > 0) {
-    return <TeamLeadView org={org} space={managedSpace} teams={managedTeams} signOut={signOut} />;
+    return <HODView org={org} space={managedSpace} teams={managedTeams} signOut={signOut} />;
   }
 
   // ── Signed in, org exists, but no role assigned yet ──
@@ -144,4 +144,5 @@ export default function OperatorPage() {
     </div>
   );
 }
+
 

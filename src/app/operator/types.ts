@@ -23,7 +23,8 @@ export interface Zone {
 }
 export interface Team {
   id: string; space_id: string; name: string; type: 'department' | 'crew';
-  description?: string | null; primary_zone_id?: string | null; join_code?: string | null; created_at: string;
+  description?: string | null; primary_zone_id?: string | null; join_code?: string | null;
+  capacity?: string | null; created_at: string;
 }
 export interface TeamLead { id: string; team_id: string; user_id: string | null; invite_email: string; created_at: string; }
 export interface TeamOperator { id: string; team_id: string; user_id: string | null; invite_email: string | null; created_at: string; }
@@ -80,7 +81,7 @@ export const TEAM_TYPES: Array<{ value: 'department' | 'crew'; label: string }> 
 ];
 export const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export const emptyTeam = { name: '', type: 'department' as 'department' | 'crew', description: '', primary_zone_id: '' };
+export const emptyTeam = { name: '', type: 'department' as 'department' | 'crew', description: '', primary_zone_id: '', capacity: '' };
 export const emptySchedule = { course_code: '', course_name: '', zone_id: '', day_of_week: DAYS_OF_WEEK[0], start_time: '', end_time: '' };
 export const emptyAnnouncement = { title: '', body: '' };
 
@@ -106,4 +107,5 @@ export function zonePath(zoneId: string | null | undefined, list: Zone[]): strin
   const parent = z.parent_zone_id ? zonePath(z.parent_zone_id, list) : '';
   return parent ? `${parent} > ${z.name}` : z.name;
 }
+
 
