@@ -103,7 +103,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
   const [oppForm, setOppForm] = useState({ ...emptyOpportunity });
   const [actForm, setActForm] = useState({ ...emptyActivity });
   const [resForm, setResForm] = useState({ ...emptyResource });
-  const [zoneAdminInviteEmail, setSpaceAdminInviteEmail] = useState('');
+  const [spaceAdminInviteEmail, setSpaceAdminInviteEmail] = useState('');
 
   useEffect(() => { loadAll(); }, [space.id]);
 
@@ -243,7 +243,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
     setPendingApps(prev => status !== 'applied' ? Math.max(0, prev - 1) : prev);
   };
 
-  const inviteZoneAdmin = async () => {
+  const inviteSpaceAdmin = async () => {
     if (!spaceAdminInviteEmail.trim()) return;
     const { error } = await supabase.from('space_admins').insert({ space_id: space.id, invite_email: spaceAdminInviteEmail.trim() });
     if (error) { window.alert(error.message); return; }
