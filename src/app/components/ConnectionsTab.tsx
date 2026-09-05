@@ -1,5 +1,24 @@
 import React from 'react';
 
+const accent = '#E26D34';
+const gold = '#D4AF37';
+const text = '#F0EBE1';
+const muted = 'rgba(240,235,225,0.45)';
+const border = 'rgba(255,255,255,0.08)';
+const cardBg = 'rgba(255,255,255,0.04)';
+
+function Avatar({ name, size = 44 }: { name: string; size?: number }) {
+  const initials = name ? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '?';
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      background: 'linear-gradient(135deg, #D4AF37, #E26D34)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontWeight: 700, fontSize: size * 0.35, color: '#fff',
+    }}>{initials}</div>
+  );
+}
+
 export function ConnectionsTab({
   connections, incomingHandshakes, incomingTier2Requests,
   acceptHandshake, declineHandshake, resolveTier2Request,
@@ -13,64 +32,93 @@ export function ConnectionsTab({
   getNameFor: (id: string) => string;
 }) {
   const accepted = connections.filter(c => c.handshake_accepted);
+  const pending  = connections.filter(c => !c.handshake_accepted);
 
   return (
-    <div style={{ padding: '0 16px' }}>
-      {incomingHandshakes.map(req => (
-        <div key={req.id} style={{ background: '#D4AF37', color: '#1C1C2E', borderRadius: 12, padding: 14, marginBottom: 10 }}>
-          <div style={{ fontWeight: 600 }}>New handshake request</div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button onClick={() => acceptHandshake(req)} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', fontWeight: 600, cursor: 'pointer' }}>Accept</button>
-            <button onClick={() => declineHandshake(req.id)} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'transparent', color: '#1C1C2E', cursor: 'pointer' }}>Decline</button>
-          </div>
-        </div>
-      ))}
+    <div style={{ padding: '16px 16px 0' }}>
 
-      {incomingTier2Requests.map(req => (
-        <div key={req.id} style={{ background: 'rgba(212,175,55,0.2)', borderRadius: 12, padding: 14, marginBottom: 10 }}>
-          <div style={{ color: '#F5EFE3', fontWeight: 500 }}>Contact info requested by {getNameFor(req.profile_id)}</div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button onClick={() => resolveTier2Request(req, true, true)} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', fontWeight: 600, cursor: 'pointer' }}>Share all</button>
-            <button onClick={() => resolveTier2Request(req, false, false)} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'transparent', color: '#F5EFE3', cursor: 'pointer' }}>Decline</button>
+      {/* Incoming handshakes */}
+      {incomingHandshakes.map(req => {
+        const name = getNameFor(req.profile_id);
+        return (
+          <div key={req.id} style={{ background: `${gold}15`, border: `1px solid ${gold}40`, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Avatar name={name} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600 }}>{name}</div>
+                <div style={{ fontSize: 12, color: muted, marginTop: 2 }}>wants to connect</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button onClick={() => acceptHandshake(req)} style={{ flex: 1, padding: '10px', borderRadius: 10, background: accent, color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>
+                Accept
+              </button>
+              <button onClick={() => declineHandshake(req.id)} style={{ flex: 1, padding: '10px', borderRadius: 10, background: 'rgba(255,255,255,0.07)', color: text, border: 'none', cursor: 'pointer', fontSize: 14 }}>
+                Ignore
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
-      {accepted.length === 0 && (
-        <p style={{ opacity: 0.45, fontSize: 14, marginTop: 24, textAlign: 'center' }}>
-          No connections yet.<br />Tap someone on Discover to send a handshake.
-        </p>
+      {/* Contact share requests */}
+      {incomingTier2Requests.map(req => {
+        const name = getNameFor(req.profile_id);
+        return (
+          <div key={req.id} style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 14, padding: 16, marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>{name} requested your contact info</div>
+            <div style={{ fontSize: 12, color: muted, marginBottom: 12 }}>Phone and LinkedIn</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => resolveTier2Request(req, true, true)} style={{ flex: 1, padding: '9px', borderRadius: 10, background: accent, color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+                Share
+              </button>
+              <button onClick={() => resolveTier2Request(req, false, false)} style={{ flex: 1, padding: '9px', borderRadius: 10, background: 'rgba(255,255,255,0.07)', color: text, border: 'none', cursor: 'pointer', fontSize: 13 }}>
+                Decline
+              </button>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Section header */}
+      {accepted.length > 0 && (
+        <div style={{ fontSize: 12, color: muted, marginBottom: 12, fontWeight: 600 }}>
+          {accepted.length} connection{accepted.length !== 1 ? 's' : ''}
+        </div>
       )}
 
-      {accepted.map(c => (
-        <div key={c.id} style={{
-          background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '14px 16px',
-          marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12,
-        }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 20, background: '#D4AF37', color: '#1C1C2E',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 700, fontSize: 16, flexShrink: 0,
-          }}>
-            {getNameFor(c.connected_profile_id)[0]?.toUpperCase() || '?'}
-          </div>
-          <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => setSelectedConnection(c)}>
-            <div style={{ fontWeight: 600, color: '#F5EFE3' }}>{getNameFor(c.connected_profile_id)}</div>
-            {c.sticky_note && <div style={{ fontSize: 12, opacity: 0.6, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.sticky_note}</div>}
-          </div>
-          <button onClick={() => onMessageRequest(c.connected_profile_id, getNameFor(c.connected_profile_id))}
-            style={{
-              background: 'none', border: '1px solid rgba(255,255,255,0.18)',
-              borderRadius: 8, color: '#F5EFE3', padding: '6px 10px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, flexShrink: 0,
-            }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            Message
-          </button>
+      {/* Empty */}
+      {accepted.length === 0 && incomingHandshakes.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '48px 24px', color: muted }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>🤝</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: text, marginBottom: 6 }}>No connections yet</div>
+          <div style={{ fontSize: 13, lineHeight: 1.6 }}>Tap someone on Discover to send a connection request.</div>
         </div>
-      ))}
+      )}
+
+      {/* Connection list — LinkedIn-style */}
+      {accepted.map(c => {
+        const name = getNameFor(c.connected_profile_id);
+        return (
+          <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: `1px solid ${border}` }}>
+            <Avatar name={name} />
+            <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => setSelectedConnection(c)}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{name}</div>
+              {c.sticky_note && (
+                <div style={{ fontSize: 12, color: muted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {c.sticky_note}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => onMessageRequest(c.connected_profile_id, name)}
+              style={{ padding: '7px 14px', borderRadius: 20, border: `1px solid ${border}`, background: 'none', color: text, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
+            >
+              Message
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
