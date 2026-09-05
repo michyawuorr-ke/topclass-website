@@ -159,7 +159,7 @@ export default function EntryFlow({ config, spaceId, onComplete }: EntryFlowProp
           )}
 
           <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 6, lineHeight: 1.2 }}>
-            {config.welcome_headline || `Welcome to ${config.space_name || 'this space'}`}
+            {config.welcome_headline || `Welcome to ${config.org_name || 'this space'}`}
           </div>
           <div style={{ fontSize: 14, color: muted, marginBottom: 32, lineHeight: 1.6 }}>
             {config.welcome_subtext || 'Sign in to see who else is here and what\'s happening.'}
