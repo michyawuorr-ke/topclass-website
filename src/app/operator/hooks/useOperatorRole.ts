@@ -38,6 +38,34 @@ export function useOperatorRole(userId: string | null): RoleContext {
   const resolve = async (uid: string) => {
     setLoading(true);
 
+    // 0. Claim any unclaimed invites matching this user's email (runs once on first login)
+    const { data: { user } } = await supabase.auth.getUser();
+    const userEmail = user?.email?.toLowerCase();
+    if (userEmail) {
+      await Promise.all([
+        supabase.from('organization_members')
+          .update({ user_id: uid })
+          .eq('invite_email', userEmail)
+          .is('user_id', null),
+        supabase.from('space_admins')
+          .update({ user_id: uid })
+          .eq('invite_email', userEmail)
+          .is('user_id', null),
+        supabase.from('zone_publishers')
+          .update({ user_id: uid })
+          .eq('invite_email', userEmail)
+          .is('user_id', null),
+        supabase.from('team_leads')
+          .update({ user_id: uid })
+          .eq('invite_email', userEmail)
+          .is('user_id', null),
+        supabase.from('team_operators')
+          .update({ user_id: uid })
+          .eq('invite_email', userEmail)
+          .is('user_id', null),
+      ]);
+    }
+
     // 1. Super admin — owns the org
     const { data: owned } = await supabase
       .from('organizations').select('*').eq('owner_id', uid).maybeSingle();
