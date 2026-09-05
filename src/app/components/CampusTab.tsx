@@ -33,10 +33,21 @@ export function CampusTab({
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'department' | 'year' | 'skill'>('all');
 
-  const others = presentPeople.filter(p =>
-    p.profile_id !== profileId &&
-    (!search.trim() || [p.profiles?.name, p.profiles?.domain, p.profiles?.title].some(f => f?.toLowerCase().includes(search.toLowerCase())))
-  );
+  const q = search.trim().toLowerCase();
+  const others = presentPeople.filter(p => {
+    if (p.profile_id === profileId) return false;
+    if (!q) return true;
+    // Search across every field that helps you find the right person
+    const fields = [
+      p.profiles?.name,
+      p.profiles?.domain,      // department / field
+      p.profiles?.title,       // year & course
+      p.need,                  // what they're looking for
+      p.offer,                 // what they're offering
+      p.station,               // where they are
+    ];
+    return fields.some(f => f?.toLowerCase().includes(q));
+  });
 
   const modes: { id: 'off' | 'department' | 'institution'; label: string; desc: string; color: string }[] = [
     { id: 'off', label: 'Hidden', desc: 'Not visible to anyone', color: muted },
@@ -75,7 +86,7 @@ export function CampusTab({
       {/* Search */}
       <input
         value={search} onChange={e => setSearch(e.target.value)}
-        placeholder="Search by name, department, skill…"
+        placeholder="Search by name, dept, year, skill, need…"
         style={{
           width: '100%', padding: '12px 14px', borderRadius: 12, marginBottom: 16,
           background: 'rgba(255,255,255,0.06)', border: `1px solid ${border}`,
