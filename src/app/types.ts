@@ -43,3 +43,4 @@ export interface Message {
   id: string; sender_profile_id: string; recipient_profile_id: string;
   body: string; created_at: string; read_at: string | null;
 }
+

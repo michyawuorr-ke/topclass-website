@@ -29,7 +29,7 @@ export default function OperatorPage() {
   }, []);
 
   const { role, org, managedSpace, managedZones, managedTeams, loading: roleLoading } =
-    useOperatorRole(session?.user?.id ?? null);
+    useOperatorRole(session?.user?.id ?? null, session?.user?.email ?? null);
 
   // Domain-match: if no org found, check if their email domain matches an existing org
   useEffect(() => {

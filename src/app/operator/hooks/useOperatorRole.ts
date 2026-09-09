@@ -22,7 +22,7 @@ export interface RoleContext {
   loading: boolean;
 }
 
-export function useOperatorRole(userId: string | null): RoleContext {
+export function useOperatorRole(userId: string | null, email: string | null = null): RoleContext {
   const [role, setRole]               = useState<OperatorRole>('none');
   const [org, setOrg]                 = useState<Org | null>(null);
   const [managedSpace, setManagedSpace] = useState<Space | null>(null);
@@ -32,37 +32,26 @@ export function useOperatorRole(userId: string | null): RoleContext {
 
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
-    resolve(userId);
-  }, [userId]);
+    resolve(userId, email);
+  }, [userId, email]);
 
-  const resolve = async (uid: string) => {
+  const resolve = async (uid: string, userEmail: string | null) => {
     setLoading(true);
 
-    // 0. Claim any unclaimed invites matching this user's email (runs once on first login)
-    const { data: { user } } = await supabase.auth.getUser();
-    const userEmail = user?.email?.toLowerCase();
+    // 0. Claim any pending invites sent to this email, on every table an
+    // invite can land in. These are best-effort: if there's nothing to
+    // claim, or it's already claimed, the UPDATE just affects 0 rows —
+    // no error either way. Without this step, an invited person can sign
+    // in successfully but never resolve to a role, because every invite
+    // row still has user_id = null forever (nothing else in the app ever
+    // sets it — the RLS "claim" policies exist but need this to run them).
     if (userEmail) {
       await Promise.all([
-        supabase.from('organization_members')
-          .update({ user_id: uid })
-          .eq('invite_email', userEmail)
-          .is('user_id', null),
-        supabase.from('space_admins')
-          .update({ user_id: uid })
-          .eq('invite_email', userEmail)
-          .is('user_id', null),
-        supabase.from('zone_publishers')
-          .update({ user_id: uid })
-          .eq('invite_email', userEmail)
-          .is('user_id', null),
-        supabase.from('team_leads')
-          .update({ user_id: uid })
-          .eq('invite_email', userEmail)
-          .is('user_id', null),
-        supabase.from('team_operators')
-          .update({ user_id: uid })
-          .eq('invite_email', userEmail)
-          .is('user_id', null),
+        supabase.from('organization_members').update({ user_id: uid }).eq('invite_email', userEmail).is('user_id', null),
+        supabase.from('space_admins').update({ user_id: uid }).eq('invite_email', userEmail).is('user_id', null),
+        supabase.from('zone_publishers').update({ user_id: uid }).eq('invite_email', userEmail).is('user_id', null),
+        supabase.from('team_leads').update({ user_id: uid }).eq('invite_email', userEmail).is('user_id', null),
+        supabase.from('team_operators').update({ user_id: uid }).eq('invite_email', userEmail).is('user_id', null),
       ]);
     }
 
@@ -163,4 +152,5 @@ export function useOperatorRole(userId: string | null): RoleContext {
 
   return { role, org, managedSpace, managedZones, managedTeams, loading };
 }
+
 

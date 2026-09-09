@@ -102,7 +102,7 @@ export function useConnections(profileId: string, spaceId: string, setActiveNav:
     });
     alert('Connection made.');
     setSelectedConnection(null);
-    setActiveNav('connections');
+    setActiveNav('network');
   };
 
   const declineHandshake = async (id: string) => {
@@ -150,3 +150,4 @@ export function useConnections(profileId: string, spaceId: string, setActiveNav:
     getNameFor,
   };
 }
+

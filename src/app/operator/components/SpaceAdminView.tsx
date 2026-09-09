@@ -308,7 +308,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
               ))}
             </div>
           )}
-          <div style={{ fontSize: 12, color: sub, marginBottom: 6 }}>Zone admins</div>
+          <div style={{ fontSize: 12, color: sub, marginBottom: 6 }}>Space admins</div>
           {spaceAdmins.length === 0 && <p style={{ opacity: 0.4, fontSize: 13 }}>Just you, so far.</p>}
           {spaceAdmins.map(a => (
             <div key={a.id} style={card}>
@@ -316,9 +316,9 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
               <div style={{ fontSize: 11, color: sub }}>{a.user_id ? 'Active' : 'Invited — not yet signed in'}</div>
             </div>
           ))}
-          <label style={lbl}>Invite a zone admin</label>
+          <label style={lbl}>Invite another space admin</label>
           <div style={{ display: 'flex', gap: 8 }}>
-            <input value={spaceAdminInviteEmail} onChange={e => setSpaceAdminInviteEmail(e.target.value)} placeholder="zoneadmin@school.edu" style={{ ...inp(), marginBottom: 0, flex: 1 }} />
+            <input value={spaceAdminInviteEmail} onChange={e => setSpaceAdminInviteEmail(e.target.value)} placeholder="admin@school.edu" style={{ ...inp(), marginBottom: 0, flex: 1 }} />
             <button onClick={inviteSpaceAdmin} style={{ ...addBtn, whiteSpace: 'nowrap' }}>Invite</button>
           </div>
         </>
