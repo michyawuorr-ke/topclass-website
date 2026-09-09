@@ -9,6 +9,7 @@ import { SuperAdminView } from './components/SuperAdminView';
 import { SpaceAdminView } from './components/SpaceAdminView';
 import { ZoneOperatorView } from './components/ZoneOperatorView';
 import { HODView } from './components/HODView';
+import { LecturerView } from './components/LecturerView';
 
 export default function OperatorPage() {
   const [session, setSession]           = useState<any>(null);
@@ -129,6 +130,10 @@ export default function OperatorPage() {
     return <HODView org={org} space={managedSpace} teams={managedTeams} signOut={signOut} />;
   }
 
+  if (role === 'lecturer') {
+    return <LecturerView userId={session.user.id} signOut={signOut} />;
+  }
+
   // ── Signed in, org exists, but no role assigned yet ──
   return (
     <div style={{ minHeight: '100vh', background: '#13131F', color: '#F5EFE3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', padding: 32, textAlign: 'center' }}>
@@ -144,5 +149,6 @@ export default function OperatorPage() {
     </div>
   );
 }
+
 
 

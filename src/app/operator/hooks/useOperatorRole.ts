@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Team } from '../types';
 
-export type OperatorRole = 'super_admin' | 'space_admin' | 'zone_operator' | 'team_lead' | 'none';
+export type OperatorRole = 'super_admin' | 'space_admin' | 'zone_operator' | 'team_lead' | 'lecturer' | 'none';
 
 export interface Org {
   id: string; name: string; owner_id: string; approved: boolean;
@@ -52,6 +52,7 @@ export function useOperatorRole(userId: string | null, email: string | null = nu
         supabase.from('zone_publishers').update({ user_id: uid }).eq('invite_email', userEmail).is('user_id', null),
         supabase.from('team_leads').update({ user_id: uid }).eq('invite_email', userEmail).is('user_id', null),
         supabase.from('team_operators').update({ user_id: uid }).eq('invite_email', userEmail).is('user_id', null),
+        supabase.from('schedule_lecturers').update({ user_id: uid }).eq('invite_email', userEmail).is('user_id', null),
       ]);
     }
 
@@ -146,11 +147,21 @@ export function useOperatorRole(userId: string | null, email: string | null = nu
       }
     }
 
+    // 7. Lecturer — has schedule_lecturers rows (assigned to specific units,
+    // not necessarily a full department operator)
+    const { data: slRows } = await supabase
+      .from('schedule_lecturers').select('schedule_id').eq('user_id', uid);
+    if (slRows && slRows.length > 0) {
+      setRole('lecturer');
+      setLoading(false); return;
+    }
+
     setRole('none');
     setLoading(false);
   };
 
   return { role, org, managedSpace, managedZones, managedTeams, loading };
 }
+
 
 

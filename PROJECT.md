@@ -426,5 +426,52 @@ Deliberately still deferred: true schedule-window attendance
 correlation, and room-QR-scan auto-entering the room (still just
 enters the space — see prior section, unchanged).
 
+## Lecturer dashboard (Tier 4 — narrower than HOD)
+
+A `LecturerView.tsx` arrived from another session (Claude Code on
+phone, working ahead of the migrations) as a broken `deploy.sh` —
+missing commas in its embedded JS made it fail to parse at all, it
+called `setActiveNav`-style routing with an undefined `uid` variable,
+referenced 'lecturer' as an `OperatorRole` before that type included
+it, and depended on four tables (`schedule_lecturers`,
+`attendance_sessions`, `attendance_logs`, `course_materials`) with no
+migration behind them. Fixed all of it rather than shipping it:
+
+- New tables + migration
+  (`20260904010000_lecturer_dashboard.sql`): `schedule_lecturers`
+  (same invite/claim pattern as everywhere else — a narrower
+  delegation than `team_operators`, "teaches THIS unit" not "operates
+  the department"), `attendance_sessions`/`attendance_logs` (open a
+  session per class, log scans against it), `course_materials`.
+- `can_operate_team()` redefined to also recognize a
+  `schedule_lecturers` claim — without this, a lecturer assigned to
+  only one unit (not also a full `team_operators` row) could open
+  attendance but couldn't post anything on their Publish tab, since
+  opportunities/activities/announcements/course_materials all gate on
+  `can_operate_team()`, not the narrower `is_schedule_lecturer()`.
+- `useOperatorRole.ts`: added `'lecturer'` to `OperatorRole`, added
+  `schedule_lecturers` to the auto-claim list, added resolution step 7
+  (checks `schedule_lecturers` for the signed-in user, after
+  `team_lead` in the cascade — someone who's both HOD and teaches a
+  course lands on the HOD dashboard, not this one).
+- `page.tsx`: routes `role === 'lecturer'` to `LecturerView`, passing
+  `session.user.id` (the actual bug — original code passed an
+  undefined `uid`).
+- `HODView.tsx`: schedules tab now shows who's assigned to each unit
+  and lets the HOD assign/remove a lecturer by email — without this,
+  `schedule_lecturers` had no way to ever get a row in it.
+- One bug fixed inside `LecturerView.tsx` itself: a `{...card, ...}`
+  spread where `card` is a background-color string, not a style
+  object — TS caught it (`Spread types may only be created from
+  object types`), changed to `background: card`.
+
+Deferred, same spirit as the attendance-log gap noted earlier:
+`attendance_logs` has a permissive open-session insert policy ready
+for it, but there's still no participant-facing "scan to check in"
+UI — a lecturer can open/close sessions and see whoever's logged, but
+nothing yet drives log rows in from the student side.
+
+
+
 
 

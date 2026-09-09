@@ -32,6 +32,7 @@ const lbl: React.CSSProperties = { fontSize: 11, color: sub, marginBottom: 4, di
 const card: React.CSSProperties = { background: 'rgba(255,255,255,0.05)', border: `1px solid ${border}`, borderRadius: 12, padding: '14px 16px', marginBottom: 10 };
 const primaryBtn: React.CSSProperties = { width: '100%', padding: '11px', borderRadius: 8, background: accent, color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: 14, marginBottom: 8 };
 const addBtn: React.CSSProperties = { padding: '9px 16px', borderRadius: 8, background: accent, color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', fontSize: 13 };
+const ghostBtn: React.CSSProperties = { padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'none', color: text, cursor: 'pointer', fontSize: 12 };
 
 // ── Drawer ───────────────────────────────────────────────────────────────────
 function Drawer({ open, onClose, title, sub: subtitle, children }: { open: boolean; onClose: () => void; title: string; sub?: string; children: React.ReactNode }) {
@@ -108,6 +109,9 @@ export function HODView({ org, space, teams, signOut }: {
   const [actForm, setActForm] = useState({ ...emptyActivity });
   const [resForm, setResForm] = useState({ ...emptyResource });
   const [annForm, setAnnForm] = useState({ ...emptyAnnouncement });
+  const [scheduleLecturers, setScheduleLecturers] = useState<Record<string, { id: string; invite_email: string | null; user_id: string | null }[]>>({});
+  const [lecturerDrawerFor, setLecturerDrawerFor] = useState<string | null>(null);
+  const [lecturerInviteEmail, setLecturerInviteEmail] = useState('');
 
   useEffect(() => {
     if (space) supabase.from('zones').select('*').eq('space_id', space.id).then(({ data }) => setAllZones(data || []));
@@ -131,6 +135,16 @@ export function HODView({ org, space, teams, signOut }: {
     setResources(res || []);
     setActivities(acts || []);
     setAnnouncements(anns || []);
+
+    const scheduleIds = (sched || []).map((s: any) => s.id);
+    if (scheduleIds.length > 0) {
+      const { data: sl } = await supabase.from('schedule_lecturers').select('*').in('schedule_id', scheduleIds);
+      const byschedule: Record<string, any[]> = {};
+      (sl || []).forEach((row: any) => { (byschedule[row.schedule_id] ||= []).push(row); });
+      setScheduleLecturers(byschedule);
+    } else {
+      setScheduleLecturers({});
+    }
 
     // Rooms = child zones of this team's primary zone
     if (team?.primary_zone_id) {
@@ -203,6 +217,19 @@ export function HODView({ org, space, teams, signOut }: {
     if (error) { window.alert(error.message); return; }
     setScheduleForm({ ...emptySchedule });
     setScheduleDrawer(false);
+    loadTeam(activeTeamId);
+  };
+
+  const assignLecturer = async () => {
+    if (!lecturerDrawerFor || !lecturerInviteEmail.trim()) return;
+    const { error } = await supabase.from('schedule_lecturers').insert({ schedule_id: lecturerDrawerFor, invite_email: lecturerInviteEmail.trim() });
+    if (error) { window.alert(error.message); return; }
+    setLecturerInviteEmail('');
+    loadTeam(activeTeamId);
+  };
+  const removeLecturer = async (id: string) => {
+    const { error } = await supabase.from('schedule_lecturers').delete().eq('id', id);
+    if (error) { window.alert(error.message); return; }
     loadTeam(activeTeamId);
   };
 
@@ -407,15 +434,41 @@ export function HODView({ org, space, teams, signOut }: {
           </div>
 
           {schedules.length === 0 && <p style={{ opacity: 0.4, fontSize: 13 }}>No schedules yet.</p>}
-          {schedules.map(s => (
-            <div key={s.id} style={card}>
-              <div style={{ fontWeight: 600 }}>{s.course_name}</div>
-              <div style={{ fontSize: 12, color: sub, marginTop: 3 }}>
-                {[s.course_code, s.day_of_week, s.start_time && s.end_time ? `${s.start_time} – ${s.end_time}` : s.start_time].filter(Boolean).join(' · ')}
+          {schedules.map(s => {
+            const lecturers = scheduleLecturers[s.id] || [];
+            return (
+              <div key={s.id} style={card}>
+                <div style={{ fontWeight: 600 }}>{s.course_name}</div>
+                <div style={{ fontSize: 12, color: sub, marginTop: 3 }}>
+                  {[s.course_code, s.day_of_week, s.start_time && s.end_time ? `${s.start_time} – ${s.end_time}` : s.start_time].filter(Boolean).join(' · ')}
+                </div>
+                {s.zone_id && <div style={{ fontSize: 11, color: sub, marginTop: 2 }}>{zonePath(s.zone_id, allZones)}</div>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                  <div style={{ fontSize: 11, color: sub }}>
+                    Lecturer: {lecturers.length > 0 ? lecturers.map(l => l.invite_email).join(', ') : 'unassigned'}
+                  </div>
+                  <button onClick={() => setLecturerDrawerFor(s.id)} style={ghostBtn}>Assign</button>
+                </div>
               </div>
-              {s.zone_id && <div style={{ fontSize: 11, color: sub, marginTop: 2 }}>{zonePath(s.zone_id, allZones)}</div>}
+            );
+          })}
+
+          <Drawer open={!!lecturerDrawerFor} onClose={() => { setLecturerDrawerFor(null); setLecturerInviteEmail(''); }} title="Assign a Lecturer" sub="They'll get their own dashboard for this specific class">
+            {lecturerDrawerFor && (scheduleLecturers[lecturerDrawerFor] || []).map(l => (
+              <div key={l.id} style={{ ...card, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{l.invite_email}</div>
+                  <div style={{ fontSize: 11, color: sub }}>{l.user_id ? 'Active' : 'Invited — not yet signed in'}</div>
+                </div>
+                <button onClick={() => removeLecturer(l.id)} style={ghostBtn}>Remove</button>
+              </div>
+            ))}
+            <label style={lbl}>Email *</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={lecturerInviteEmail} onChange={e => setLecturerInviteEmail(e.target.value)} placeholder="lecturer@school.edu" style={{ ...inp(), marginBottom: 0, flex: 1 }} />
+              <button onClick={assignLecturer} style={{ ...addBtn, whiteSpace: 'nowrap' }}>Assign</button>
             </div>
-          ))}
+          </Drawer>
 
           <Drawer open={scheduleDrawer} onClose={() => setScheduleDrawer(false)} title="Add a Class" sub="Map a course to a room and time slot">
             <label style={lbl}>Course name *</label>
@@ -619,4 +672,5 @@ export function HODView({ org, space, teams, signOut }: {
     </OperatorShell>
   );
 }
+
 
