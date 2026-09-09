@@ -20,6 +20,7 @@ export interface RoleContext {
   managedZones: Zone[];
   managedTeams: Team[];
   loading: boolean;
+  refetch: () => void;
 }
 
 export function useOperatorRole(userId: string | null, email: string | null = null): RoleContext {
@@ -160,7 +161,7 @@ export function useOperatorRole(userId: string | null, email: string | null = nu
     setLoading(false);
   };
 
-  return { role, org, managedSpace, managedZones, managedTeams, loading };
+  return { role, org, managedSpace, managedZones, managedTeams, loading, refetch: () => { if (userId) resolve(userId, email); } };
 }
 
 

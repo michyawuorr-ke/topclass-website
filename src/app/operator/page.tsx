@@ -19,6 +19,8 @@ export default function OperatorPage() {
   const [orgForm, setOrgForm]           = useState({ name: '', description: '', website: '', contact_email: '', contact_phone: '', email_domain: '' });
   const [domainOrgs, setDomainOrgs]     = useState<Org[]>([]);
   const [showCreateOrg, setShowCreateOrg] = useState(false);
+  const [orgCreating, setOrgCreating]   = useState(false);
+  const [orgCreateError, setOrgCreateError] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -29,7 +31,7 @@ export default function OperatorPage() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const { role, org, managedSpace, managedZones, managedTeams, loading: roleLoading } =
+  const { role, org, managedSpace, managedZones, managedTeams, loading: roleLoading, refetch } =
     useOperatorRole(session?.user?.id ?? null, session?.user?.email ?? null);
 
   // Domain-match: if no org found, check if their email domain matches an existing org
@@ -67,7 +69,10 @@ export default function OperatorPage() {
   };
 
   const createOrg = async () => {
-    if (!orgForm.name.trim() || !session) return;
+    setOrgCreateError('');
+    if (!orgForm.name.trim()) { setOrgCreateError('Organization name is required.'); return; }
+    if (!session) { setOrgCreateError('Not signed in — try refreshing the page.'); return; }
+    setOrgCreating(true);
     const { error } = await supabase.from('organizations').insert({
       name: orgForm.name.trim(),
       owner_id: session.user.id,
@@ -77,10 +82,9 @@ export default function OperatorPage() {
       contact_phone: orgForm.contact_phone || null,
       email_domain: orgForm.email_domain.trim().toLowerCase() || null,
     });
-    if (error) { window.alert(`Could not create organization: ${error.message}`); return; }
-    // Trigger re-resolution
-    const { data } = await supabase.auth.getSession();
-    setSession({ ...data.session });
+    if (error) { setOrgCreating(false); setOrgCreateError(error.message); return; }
+    setOrgCreating(false);
+    refetch();
   };
 
   // ── Loading ──
@@ -110,7 +114,7 @@ export default function OperatorPage() {
         />
       );
     }
-    return <OrgSetupForm orgForm={orgForm} setOrgForm={setOrgForm} createOrg={createOrg} />;
+    return <OrgSetupForm orgForm={orgForm} setOrgForm={setOrgForm} createOrg={createOrg} creating={orgCreating} error={orgCreateError} />;
   }
 
   // ── Route by role ──
