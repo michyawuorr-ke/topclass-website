@@ -82,6 +82,9 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
     if (!newSpaceName.trim()) return;
     const { data, error } = await supabase.from('spaces')
       .insert({
+        name: newSpaceName.trim(),
+        type: 'university',
+        organization_id: org.id,
         space_code: newSpaceCode.trim() || null,
         domain_restriction: newSpaceDomain.trim().toLowerCase() || null,
       })
@@ -94,6 +97,15 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
     setSpaces(prev => [...prev, data]);
     setNewSpaceName(''); setNewSpaceCode(''); setNewSpaceDomain(''); setNewDeanEmail('');
     loadAll();
+  };
+
+  const [addAdminForSpace, setAddAdminForSpace] = useState<string | null>(null);
+  const [addAdminEmail, setAddAdminEmail] = useState('');
+  const addSpaceAdmin = async (spaceId: string) => {
+    if (!addAdminEmail.trim()) return;
+    const { error } = await supabase.from('space_admins').insert({ space_id: spaceId, invite_email: addAdminEmail.trim() });
+    if (error) { window.alert(error.message); return; }
+    setAddAdminEmail(''); setAddAdminForSpace(null); loadAll();
   };
 
   const archiveSpace = async (id: string) => {
@@ -187,7 +199,17 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
                       </div>
                       <div style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>
                         Lead: {leads.length > 0 ? leads.map(l => l.invite_email).join(', ') : 'unassigned'}
+                        {' '}
+                        <button onClick={() => { setAddAdminForSpace(addAdminForSpace === s.id ? null : s.id); setAddAdminEmail(''); }} style={{ background: 'none', border: 'none', color: '#E26D34', fontSize: 11, cursor: 'pointer', padding: 0 }}>
+                          {addAdminForSpace === s.id ? 'cancel' : '+ add admin'}
+                        </button>
                       </div>
+                      {addAdminForSpace === s.id && (
+                        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                          <input value={addAdminEmail} onChange={e => setAddAdminEmail(e.target.value)} placeholder="admin@school.edu" style={{ ...inp(), marginBottom: 0, flex: 1, fontSize: 12, padding: '7px 9px' }} />
+                          <button onClick={() => addSpaceAdmin(s.id)} style={{ ...ghostBtn, borderColor: '#E26D34', color: '#E26D34' }}>Add</button>
+                        </div>
+                      )}
                       <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>
                         {zoneCounts[s.id] || 0} active zone{(zoneCounts[s.id] || 0) === 1 ? '' : 's'} ·{' '}
                         <span style={{ color: org.approved ? '#1D9E75' : '#D4AF37' }}>{org.approved ? 'Live' : 'Pending approval'}</span>
@@ -251,4 +273,5 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
     </OperatorShell>
   );
 }
+
 

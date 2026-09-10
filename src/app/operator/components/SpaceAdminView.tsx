@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
-  Org, Space, Zone, Team, TeamLead, Item, Application, SpaceAdmin, AccessRequest,
+  Org, Space, Zone, Team, TeamLead, Item, Application,
   emptyOpportunity, emptyResource, emptyActivity, emptyTeam,
   OPPORTUNITY_TYPES,
 } from '../types';
@@ -81,8 +81,6 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
   const [activities, setActivities] = useState<Item[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [pendingApps, setPendingApps] = useState(0);
-  const [spaceAdmins, setSpaceAdmins] = useState<SpaceAdmin[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<AccessRequest[]>([]);
   const [stats, setStats] = useState<Stat[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -103,7 +101,6 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
   const [oppForm, setOppForm] = useState({ ...emptyOpportunity });
   const [actForm, setActForm] = useState({ ...emptyActivity });
   const [resForm, setResForm] = useState({ ...emptyResource });
-  const [spaceAdminInviteEmail, setSpaceAdminInviteEmail] = useState('');
 
   useEffect(() => { loadAll(); }, [space.id]);
 
@@ -150,13 +147,6 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
       { label: 'Buildings', value: (z || []).filter((zz: any) => !zz.parent_zone_id).length },
       { label: 'Pending applications', value: pending, accent: pending > 0 },
     ]);
-
-    const [{ data: admins }, { data: reqs }] = await Promise.all([
-      supabase.from('space_admins').select('*').eq('space_id', space.id),
-      supabase.from('access_requests').select('*').eq('space_id', space.id).eq('status', 'pending'),
-    ]);
-    setSpaceAdmins(admins || []);
-    setPendingRequests(reqs || []);
   };
 
   const uploadImage = async (file: File): Promise<string | null> => {
@@ -243,23 +233,6 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
     setPendingApps(prev => status !== 'applied' ? Math.max(0, prev - 1) : prev);
   };
 
-  const inviteSpaceAdmin = async () => {
-    if (!spaceAdminInviteEmail.trim()) return;
-    const { error } = await supabase.from('space_admins').insert({ space_id: space.id, invite_email: spaceAdminInviteEmail.trim() });
-    if (error) { window.alert(error.message); return; }
-    setSpaceAdminInviteEmail(''); loadAll();
-  };
-  const approveRequest = async (id: string) => {
-    const { error } = await supabase.rpc('approve_access_request', { request_id: id });
-    if (error) { window.alert(error.message); return; }
-    loadAll();
-  };
-  const denyRequest = async (id: string) => {
-    const { error } = await supabase.rpc('deny_access_request', { request_id: id });
-    if (error) { window.alert(error.message); return; }
-    loadAll();
-  };
-
   const nav = [
     { id: 'home',         label: 'Home',         icon: '◈' },
     { id: 'departments',  label: 'Departments',  icon: '🎓', badge: teams.length },
@@ -290,37 +263,20 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
             </div>
           )}
 
-          <div style={{ fontWeight: 700, fontSize: 15, margin: '24px 0 12px' }}>Space team</div>
-          {pendingRequests.length > 0 && (
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 12, color: sub, marginBottom: 6 }}>Pending access requests</div>
-              {pendingRequests.map(r => (
-                <div key={r.id} style={{ ...card, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{r.requester_email}</div>
-                    {r.note && <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>{r.note}</div>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => approveRequest(r.id)} style={{ ...ghostBtn, borderColor: teal, color: teal }}>Approve</button>
-                    <button onClick={() => denyRequest(r.id)} style={ghostBtn}>Deny</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <div style={{ fontSize: 12, color: sub, marginBottom: 6 }}>Space admins</div>
-          {spaceAdmins.length === 0 && <p style={{ opacity: 0.4, fontSize: 13 }}>Just you, so far.</p>}
-          {spaceAdmins.map(a => (
-            <div key={a.id} style={card}>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>{a.invite_email}</div>
-              <div style={{ fontSize: 11, color: sub }}>{a.user_id ? 'Active' : 'Invited — not yet signed in'}</div>
-            </div>
-          ))}
-          <label style={lbl}>Invite another space admin</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input value={spaceAdminInviteEmail} onChange={e => setSpaceAdminInviteEmail(e.target.value)} placeholder="admin@school.edu" style={{ ...inp(), marginBottom: 0, flex: 1 }} />
-            <button onClick={inviteSpaceAdmin} style={{ ...addBtn, whiteSpace: 'nowrap' }}>Invite</button>
-          </div>
+          <div style={{ fontWeight: 700, fontSize: 15, margin: '24px 0 12px' }}>Department leads</div>
+          {teams.length === 0 && <p style={{ opacity: 0.4, fontSize: 13, marginBottom: 14 }}>No departments yet — create one in the Departments tab.</p>}
+          {teams.map(t => {
+            const leads = teamLeadsByTeam[t.id] || [];
+            return (
+              <div key={t.id} onClick={() => setTab('departments')} style={{ ...card, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{t.name}</div>
+                <div style={{ fontSize: 12, color: sub }}>{leads.length > 0 ? leads.map(l => l.invite_email).join(', ') : 'unassigned'}</div>
+              </div>
+            );
+          })}
+          <p style={{ fontSize: 11, opacity: 0.4, marginTop: teams.length > 0 ? 8 : 0, marginBottom: 20 }}>
+            Assign or change a department's lead from the Departments tab.
+          </p>
         </>
       )}
 
@@ -584,4 +540,5 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
     </OperatorShell>
   );
 }
+
 
