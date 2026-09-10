@@ -12,7 +12,7 @@ import { HODView } from './components/HODView';
 import { LecturerView } from './components/LecturerView';
 
 export default function OperatorPage() {
-  const [session, setSession]           = useState<any>(null);
+  const [rawSession, setSession]        = useState<any>(null);
   const [authLoading, setAuthLoading]   = useState(true);
   const [email, setEmail]               = useState('');
   const [magicLinkSent, setMagicLinkSent] = useState(false);
@@ -30,6 +30,18 @@ export default function OperatorPage() {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // The participant-facing app signs people in anonymously
+  // (supabase.auth.signInAnonymously() in EntryFlow), and Supabase
+  // sessions are shared across the whole site in one browser — not
+  // scoped per page. If this browser ever visited the participant app
+  // first, plain `session` here would be that anonymous session, and
+  // everything below would treat it as a real signed-in operator.
+  // Anonymous users get a real id but email: null, which is exactly
+  // why org-creation attempts could silently end up owned by a
+  // "nobody" that can never be found again on the next visit. `session`
+  // is only ever used through this from here down.
+  const session = rawSession && !rawSession.user?.is_anonymous ? rawSession : null;
 
   const { role, org, managedSpace, managedZones, managedTeams, loading: roleLoading, refetch } =
     useOperatorRole(session?.user?.id ?? null, session?.user?.email ?? null);
