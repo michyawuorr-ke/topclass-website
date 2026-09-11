@@ -43,7 +43,9 @@ export default function OperatorPage() {
   // is only ever used through this from here down.
   const session = rawSession && !rawSession.user?.is_anonymous ? rawSession : null;
 
-  const { role, org, managedSpace, managedZones, managedTeams, loading: roleLoading, refetch } =
+  const [viewAsLecturer, setViewAsLecturer] = useState(false);
+
+  const { role, org, managedSpace, managedZones, managedTeams, loading: roleLoading, refetch, alsoTeaches } =
     useOperatorRole(session?.user?.id ?? null, session?.user?.email ?? null);
 
   // Domain-match: if no org found, check if their email domain matches an existing org
@@ -129,25 +131,65 @@ export default function OperatorPage() {
     return <OrgSetupForm orgForm={orgForm} setOrgForm={setOrgForm} createOrg={createOrg} creating={orgCreating} error={orgCreateError} />;
   }
 
+  const primaryView = renderPrimaryView();
+
+  if (primaryView) {
+    // ── Also teaches a class, but that's not their primary dashboard —
+    // give them an explicit way to switch into it and back, rather than
+    // silently having no path to their own attendance/materials at all.
+    if (alsoTeaches && role !== 'lecturer') {
+      if (viewAsLecturer) {
+        return (
+          <div>
+            <div style={{ background: '#8A6DE2', color: '#fff', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+              <span>Viewing your teaching dashboard</span>
+              <button onClick={() => setViewAsLecturer(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                ← Back to my main dashboard
+              </button>
+            </div>
+            <LecturerView userId={session.user.id} signOut={signOut} />
+          </div>
+        );
+      }
+      return (
+        <div>
+          <div style={{ background: '#1C1C2E', borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#F5EFE3', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+            <span>You're also assigned to teach at least one class</span>
+            <button onClick={() => setViewAsLecturer(true)} style={{ background: '#8A6DE2', border: 'none', color: '#fff', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              Open my teaching dashboard →
+            </button>
+          </div>
+          {primaryView}
+        </div>
+      );
+    }
+    return primaryView;
+  }
+
   // ── Route by role ──
-  if (role === 'super_admin') {
-    return <SuperAdminView org={org} signOut={signOut} />;
-  }
+  function renderPrimaryView() {
+    if (!org) return null;
+    if (role === 'super_admin') {
+      return <SuperAdminView org={org} signOut={signOut} />;
+    }
 
-  if (role === 'space_admin' && managedSpace) {
-    return <SpaceAdminView org={org} space={managedSpace} signOut={signOut} />;
-  }
+    if (role === 'space_admin' && managedSpace) {
+      return <SpaceAdminView org={org} space={managedSpace} signOut={signOut} />;
+    }
 
-  if (role === 'zone_operator' && managedZones.length > 0) {
-    return <ZoneOperatorView org={org} space={managedSpace} zones={managedZones} signOut={signOut} />;
-  }
+    if (role === 'zone_operator' && managedZones.length > 0) {
+      return <ZoneOperatorView org={org} space={managedSpace} zones={managedZones} signOut={signOut} />;
+    }
 
-  if (role === 'team_lead' && managedTeams.length > 0) {
-    return <HODView org={org} space={managedSpace} teams={managedTeams} signOut={signOut} />;
-  }
+    if (role === 'team_lead' && managedTeams.length > 0) {
+      return <HODView org={org} space={managedSpace} teams={managedTeams} signOut={signOut} />;
+    }
 
-  if (role === 'lecturer') {
-    return <LecturerView userId={session.user.id} signOut={signOut} />;
+    if (role === 'lecturer') {
+      return <LecturerView userId={session.user.id} signOut={signOut} />;
+    }
+
+    return null;
   }
 
   // ── Signed in, org exists, but no role assigned yet ──

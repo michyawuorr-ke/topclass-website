@@ -21,6 +21,7 @@ export interface RoleContext {
   managedTeams: Team[];
   loading: boolean;
   refetch: () => void;
+  alsoTeaches: boolean;
 }
 
 export function useOperatorRole(userId: string | null, email: string | null = null): RoleContext {
@@ -30,6 +31,7 @@ export function useOperatorRole(userId: string | null, email: string | null = nu
   const [managedZones, setManagedZones] = useState<Zone[]>([]);
   const [managedTeams, setManagedTeams] = useState<Team[]>([]);
   const [loading, setLoading]         = useState(true);
+  const [alsoTeaches, setAlsoTeaches] = useState(false);
 
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
@@ -57,9 +59,30 @@ export function useOperatorRole(userId: string | null, email: string | null = nu
       ]);
     }
 
-    // 1. Super admin — owns the org
-    const { data: owned } = await supabase
-      .from('organizations').select('*').eq('owner_id', uid).maybeSingle();
+    // Check for a teaching assignment *unconditionally*, before the role
+    // cascade below picks a primary dashboard. Every branch of that
+    // cascade returns early the moment it finds a match — so a Space
+    // Admin or HOD who is ALSO assigned as a schedule_lecturers row
+    // would never have that checked at all, because the cascade stops
+    // looking once it finds their higher-tier role first. That's fine
+    // for deciding which dashboard they land on by default, but it
+    // means they'd have no way to ever reach their own attendance
+    // sessions or materials for the class they teach. This runs first
+    // and is exposed separately so the UI can offer a switcher.
+    const { data: slCheck } = await supabase
+      .from('schedule_lecturers').select('schedule_id').eq('user_id', uid).limit(1);
+    setAlsoTeaches(!!slCheck && slCheck.length > 0);
+
+    // 1. Super admin — owns the org. Ordered + limited rather than
+    // .maybeSingle(): if more than one organizations row ended up with
+    // this owner_id (e.g. from an earlier retry that actually succeeded
+    // silently before a bug was fixed), .maybeSingle() throws on
+    // multiple rows and this step would fail every time. Taking the
+    // oldest one deterministically avoids that trap entirely.
+    const { data: ownedRows } = await supabase
+      .from('organizations').select('*').eq('owner_id', uid)
+      .order('created_at', { ascending: true }).limit(1);
+    const owned = ownedRows?.[0] ?? null;
     if (owned) {
       setOrg(owned); setRole('super_admin'); setLoading(false); return;
     }
@@ -161,7 +184,7 @@ export function useOperatorRole(userId: string | null, email: string | null = nu
     setLoading(false);
   };
 
-  return { role, org, managedSpace, managedZones, managedTeams, loading, refetch: () => { if (userId) resolve(userId, email); } };
+  return { role, org, managedSpace, managedZones, managedTeams, loading, refetch: () => { if (userId) resolve(userId, email); }, alsoTeaches };
 }
 
 
