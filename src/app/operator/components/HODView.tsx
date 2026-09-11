@@ -113,6 +113,14 @@ export function HODView({ org, space, teams, signOut }: {
   const [lecturerDrawerFor, setLecturerDrawerFor] = useState<string | null>(null);
   const [lecturerInviteEmail, setLecturerInviteEmail] = useState('');
 
+  // Editing (null = creating new; set = editing that row)
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
+  const [editingOppId, setEditingOppId] = useState<string | null>(null);
+  const [editingActId, setEditingActId] = useState<string | null>(null);
+  const [editingResId, setEditingResId] = useState<string | null>(null);
+  const [editingAnnId, setEditingAnnId] = useState<string | null>(null);
+
   useEffect(() => {
     if (space) supabase.from('zones').select('*').eq('space_id', space.id).then(({ data }) => setAllZones(data || []));
   }, [space?.id]);
@@ -187,37 +195,47 @@ export function HODView({ org, space, teams, signOut }: {
     const { data } = supabase.storage.from('toruok-media').getPublicUrl(path);
     return data.publicUrl;
   };
+  const handleOppImg = async (f: File) => { setUploadingImage(true); const u = await uploadImage(f); if (u) setOppForm(p => ({ ...p, image_url: u })); setUploadingImage(false); };
+  const handleActImg = async (f: File) => { setUploadingImage(true); const u = await uploadImage(f); if (u) setActForm(p => ({ ...p, image_url: u })); setUploadingImage(false); };
+  const handleResImg = async (f: File) => { setUploadingImage(true); const u = await uploadImage(f); if (u) setResForm(p => ({ ...p, image_url: u })); setUploadingImage(false); };
 
   const addRoom = async () => {
     if (!roomForm.name.trim() || !activeTeam?.primary_zone_id) return;
-    const { error } = await supabase.from('zones').insert({
-      space_id: space?.id,
-      name: roomForm.name.trim(),
-      capacity: roomForm.capacity || null,
-      description: roomForm.description || null,
-      parent_zone_id: activeTeam.primary_zone_id,
-    });
+    const payload = { name: roomForm.name.trim(), capacity: roomForm.capacity || null, description: roomForm.description || null };
+    const { error } = editingRoomId
+      ? await supabase.from('zones').update(payload).eq('id', editingRoomId)
+      : await supabase.from('zones').insert({ space_id: space?.id, parent_zone_id: activeTeam.primary_zone_id, ...payload });
     if (error) { window.alert(error.message); return; }
     setRoomForm({ name: '', capacity: '', description: '' });
-    setRoomDrawer(false);
+    setRoomDrawer(false); setEditingRoomId(null);
     loadTeam(activeTeamId);
+  };
+  const openEditRoom = (z: Zone) => {
+    setRoomForm({ name: z.name, capacity: z.capacity || '', description: z.description || '' });
+    setEditingRoomId(z.id); setRoomDrawer(true);
   };
 
   const addSchedule = async () => {
     if (!scheduleForm.course_name.trim()) return;
-    const { error } = await supabase.from('schedules').insert({
-      team_id: activeTeamId,
-      course_code: scheduleForm.course_code || null,
-      course_name: scheduleForm.course_name,
-      zone_id: scheduleForm.zone_id || null,
-      day_of_week: scheduleForm.day_of_week || null,
-      start_time: scheduleForm.start_time || null,
-      end_time: scheduleForm.end_time || null,
-    });
+    const payload = {
+      course_code: scheduleForm.course_code || null, course_name: scheduleForm.course_name,
+      zone_id: scheduleForm.zone_id || null, day_of_week: scheduleForm.day_of_week || null,
+      start_time: scheduleForm.start_time || null, end_time: scheduleForm.end_time || null,
+    };
+    const { error } = editingScheduleId
+      ? await supabase.from('schedules').update(payload).eq('id', editingScheduleId)
+      : await supabase.from('schedules').insert({ team_id: activeTeamId, ...payload });
     if (error) { window.alert(error.message); return; }
     setScheduleForm({ ...emptySchedule });
-    setScheduleDrawer(false);
+    setScheduleDrawer(false); setEditingScheduleId(null);
     loadTeam(activeTeamId);
+  };
+  const openEditSchedule = (s: Schedule) => {
+    setScheduleForm({
+      course_code: s.course_code || '', course_name: s.course_name || '', zone_id: s.zone_id || '',
+      day_of_week: s.day_of_week || '', start_time: s.start_time || '', end_time: s.end_time || '',
+    });
+    setEditingScheduleId(s.id); setScheduleDrawer(true);
   };
 
   const assignLecturer = async () => {
@@ -235,50 +253,88 @@ export function HODView({ org, space, teams, signOut }: {
 
   const addOpportunity = async () => {
     if (!oppForm.title.trim() || !space) return;
-    const { error } = await supabase.from('opportunities').insert({
-      space_id: space.id, team_id: activeTeamId, title: oppForm.title, type: oppForm.type,
+    const payload = {
+      title: oppForm.title, type: oppForm.type,
       provider: oppForm.provider || null, description: oppForm.description || null,
       eligibility: oppForm.eligibility || null, compensation: oppForm.compensation || null,
       deadline: oppForm.deadline ? new Date(oppForm.deadline).toISOString() : null,
       application_method: oppForm.application_method || null, zone_id: oppForm.zone_id || null,
       location: oppForm.location || null, status: oppForm.status, image_url: oppForm.image_url || null,
-    });
+    };
+    const { error } = editingOppId
+      ? await supabase.from('opportunities').update(payload).eq('id', editingOppId)
+      : await supabase.from('opportunities').insert({ space_id: space.id, team_id: activeTeamId, ...payload });
     if (error) { window.alert(error.message); return; }
-    setOppForm({ ...emptyOpportunity }); setOppDrawer(false); loadTeam(activeTeamId);
+    setOppForm({ ...emptyOpportunity }); setOppDrawer(false); setEditingOppId(null); loadTeam(activeTeamId);
+  };
+  const openEditOpp = (o: Item) => {
+    setOppForm({
+      title: o.title || '', type: o.type || OPPORTUNITY_TYPES[0], provider: o.provider || '', description: o.description || '',
+      eligibility: o.eligibility || '', compensation: o.compensation || '',
+      deadline: o.deadline ? o.deadline.slice(0, 10) : '', application_method: o.application_method || '',
+      zone_id: o.zone_id || '', location: o.location || '', status: o.status || 'open', image_url: o.image_url || '',
+    });
+    setEditingOppId(o.id); setOppDrawer(true);
   };
 
   const addActivity = async () => {
     if (!actForm.title.trim() || !space) return;
-    const { error } = await supabase.from('activities').insert({
-      space_id: space.id, team_id: activeTeamId, title: actForm.title,
-      host: actForm.host || null, description: actForm.description || null,
+    const payload = {
+      title: actForm.title, host: actForm.host || null, description: actForm.description || null,
       category: actForm.category || null,
       start_time: actForm.start_time ? new Date(actForm.start_time).toISOString() : null,
       end_time: actForm.end_time ? new Date(actForm.end_time).toISOString() : null,
       zone_id: actForm.zone_id || null, capacity: actForm.capacity || null,
       registration_link: actForm.registration_link || null, image_url: actForm.image_url || null,
-    });
+    };
+    const { error } = editingActId
+      ? await supabase.from('activities').update(payload).eq('id', editingActId)
+      : await supabase.from('activities').insert({ space_id: space.id, team_id: activeTeamId, ...payload });
     if (error) { window.alert(error.message); return; }
-    setActForm({ ...emptyActivity }); setActDrawer(false); loadTeam(activeTeamId);
+    setActForm({ ...emptyActivity }); setActDrawer(false); setEditingActId(null); loadTeam(activeTeamId);
+  };
+  const openEditAct = (a: Item) => {
+    setActForm({
+      title: a.title || '', host: a.host || '', description: a.description || '', category: a.category || '',
+      start_time: a.start_time ? a.start_time.slice(0, 16) : '', end_time: a.end_time ? a.end_time.slice(0, 16) : '',
+      zone_id: a.zone_id || '', capacity: a.capacity || '', registration_link: a.registration_link || '', image_url: a.image_url || '',
+    });
+    setEditingActId(a.id); setActDrawer(true);
   };
 
   const addResource = async () => {
     if (!resForm.name.trim() || !space) return;
-    const { error } = await supabase.from('resources').insert({
-      space_id: space.id, team_id: activeTeamId, name: resForm.name,
-      owner: resForm.owner || null, description: resForm.description || null,
+    const payload = {
+      name: resForm.name, owner: resForm.owner || null, description: resForm.description || null,
       availability: resForm.availability || null, capacity: resForm.capacity || null,
       zone_id: resForm.zone_id || null, image_url: resForm.image_url || null,
-    });
+    };
+    const { error } = editingResId
+      ? await supabase.from('resources').update(payload).eq('id', editingResId)
+      : await supabase.from('resources').insert({ space_id: space.id, team_id: activeTeamId, ...payload });
     if (error) { window.alert(error.message); return; }
-    setResForm({ ...emptyResource }); setResDrawer(false); loadTeam(activeTeamId);
+    setResForm({ ...emptyResource }); setResDrawer(false); setEditingResId(null); loadTeam(activeTeamId);
+  };
+  const openEditRes = (r: Item) => {
+    setResForm({
+      name: r.name || '', owner: r.owner || '', description: r.description || '',
+      availability: r.availability || '', capacity: r.capacity || '', zone_id: r.zone_id || '', image_url: r.image_url || '',
+    });
+    setEditingResId(r.id); setResDrawer(true);
   };
 
   const addAnnouncement = async () => {
     if (!annForm.title.trim()) return;
-    const { error } = await supabase.from('announcements').insert({ team_id: activeTeamId, title: annForm.title, body: annForm.body || null });
+    const payload = { title: annForm.title, body: annForm.body || null };
+    const { error } = editingAnnId
+      ? await supabase.from('announcements').update(payload).eq('id', editingAnnId)
+      : await supabase.from('announcements').insert({ team_id: activeTeamId, ...payload });
     if (error) { window.alert(error.message); return; }
-    setAnnForm({ ...emptyAnnouncement }); setAnnDrawer(false); loadTeam(activeTeamId);
+    setAnnForm({ ...emptyAnnouncement }); setAnnDrawer(false); setEditingAnnId(null); loadTeam(activeTeamId);
+  };
+  const openEditAnn = (a: Announcement) => {
+    setAnnForm({ title: a.title, body: a.body || '' });
+    setEditingAnnId(a.id); setAnnDrawer(true);
   };
 
   const updateApplicationStatus = async (id: string, status: string) => {
@@ -347,7 +403,7 @@ export function HODView({ org, space, teams, signOut }: {
               <div style={{ fontWeight: 700, fontSize: 16 }}>Rooms</div>
               <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>Classrooms, labs, and lecture halls in your department</div>
             </div>
-            <button onClick={() => setRoomDrawer(true)} style={addBtn}>+ Add room</button>
+            <button onClick={() => { setRoomForm({ name: '', capacity: '', description: '' }); setEditingRoomId(null); setRoomDrawer(true); }} style={addBtn}>+ Add room</button>
           </div>
 
           {!activeTeam?.primary_zone_id && (
@@ -368,29 +424,34 @@ export function HODView({ org, space, teams, signOut }: {
                   {r.capacity && <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>{r.capacity} seats</div>}
                   {r.description && <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>{r.description}</div>}
                 </div>
-                <button
-                  onClick={() => setQrRoom(r)}
-                  style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid rgba(29,158,117,0.4)`, background: 'rgba(29,158,117,0.1)', color: teal, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-                >
-                  Door QR
-                </button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => openEditRoom(r)} style={ghostBtn}>Edit</button>
+                  <button
+                    onClick={() => setQrRoom(r)}
+                    style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid rgba(29,158,117,0.4)`, background: 'rgba(29,158,117,0.1)', color: teal, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                  >
+                    Door QR
+                  </button>
+                </div>
               </div>
             </div>
           ))}
 
-          {/* Add room drawer */}
-          <Drawer open={roomDrawer} onClose={() => setRoomDrawer(false)} title="Add a Room" sub="Rooms get a permanent door QR code for student check-in">
+          {/* Add/Edit room drawer */}
+          <Drawer open={roomDrawer} onClose={() => { setRoomDrawer(false); setEditingRoomId(null); }} title={editingRoomId ? 'Edit Room' : 'Add a Room'} sub="Rooms get a permanent door QR code for student check-in">
             <label style={lbl}>Room name *</label>
             <input value={roomForm.name} onChange={e => setRoomForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Classroom L5, Lab 302" style={inp()} />
             <label style={lbl}>Seating capacity</label>
             <input value={roomForm.capacity} onChange={e => setRoomForm(f => ({ ...f, capacity: e.target.value }))} placeholder="e.g. 40" style={inp()} />
             <label style={lbl}>Notes</label>
             <textarea value={roomForm.description} onChange={e => setRoomForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. Projector, AC" style={{ ...inp(), minHeight: 60 }} />
-            <div style={{ background: 'rgba(29,158,117,0.08)', border: `1px solid rgba(29,158,117,0.2)`, borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 12, color: sub }}>
-              ✓ A permanent door QR code will be generated automatically for student attendance scanning.
-            </div>
+            {!editingRoomId && (
+              <div style={{ background: 'rgba(29,158,117,0.08)', border: `1px solid rgba(29,158,117,0.2)`, borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 12, color: sub }}>
+                ✓ A permanent door QR code will be generated automatically for student attendance scanning.
+              </div>
+            )}
             <button onClick={addRoom} disabled={!roomForm.name.trim() || !activeTeam?.primary_zone_id} style={{ ...primaryBtn, opacity: !roomForm.name.trim() || !activeTeam?.primary_zone_id ? 0.5 : 1 }}>
-              Add room & generate QR
+              {editingRoomId ? 'Save changes' : 'Add room & generate QR'}
             </button>
           </Drawer>
 
@@ -430,7 +491,7 @@ export function HODView({ org, space, teams, signOut }: {
               <div style={{ fontWeight: 700, fontSize: 16 }}>Class Schedules</div>
               <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>Timetable for courses in this department</div>
             </div>
-            <button onClick={() => setScheduleDrawer(true)} style={addBtn}>+ Add class</button>
+            <button onClick={() => { setScheduleForm({ ...emptySchedule }); setEditingScheduleId(null); setScheduleDrawer(true); }} style={addBtn}>+ Add class</button>
           </div>
 
           {schedules.length === 0 && <p style={{ opacity: 0.4, fontSize: 13 }}>No schedules yet.</p>}
@@ -447,7 +508,10 @@ export function HODView({ org, space, teams, signOut }: {
                   <div style={{ fontSize: 11, color: sub }}>
                     Lecturer: {lecturers.length > 0 ? lecturers.map(l => l.invite_email).join(', ') : 'unassigned'}
                   </div>
-                  <button onClick={() => setLecturerDrawerFor(s.id)} style={ghostBtn}>Assign</button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => openEditSchedule(s)} style={ghostBtn}>Edit</button>
+                    <button onClick={() => setLecturerDrawerFor(s.id)} style={ghostBtn}>Assign</button>
+                  </div>
                 </div>
               </div>
             );
@@ -470,7 +534,7 @@ export function HODView({ org, space, teams, signOut }: {
             </div>
           </Drawer>
 
-          <Drawer open={scheduleDrawer} onClose={() => setScheduleDrawer(false)} title="Add a Class" sub="Map a course to a room and time slot">
+          <Drawer open={scheduleDrawer} onClose={() => { setScheduleDrawer(false); setEditingScheduleId(null); }} title={editingScheduleId ? 'Edit Class' : 'Add a Class'} sub="Map a course to a room and time slot">
             <label style={lbl}>Course name *</label>
             <input value={scheduleForm.course_name} onChange={e => setScheduleForm(f => ({ ...f, course_name: e.target.value }))} placeholder="e.g. Urban Sociology" style={inp()} />
             <label style={lbl}>Course code</label>
@@ -496,7 +560,7 @@ export function HODView({ org, space, teams, signOut }: {
               </div>
             </div>
             <button onClick={addSchedule} disabled={!scheduleForm.course_name.trim()} style={{ ...primaryBtn, opacity: !scheduleForm.course_name.trim() ? 0.5 : 1 }}>
-              Add to timetable
+              {editingScheduleId ? 'Save changes' : 'Add to timetable'}
             </button>
           </Drawer>
         </>
@@ -520,7 +584,7 @@ export function HODView({ org, space, teams, signOut }: {
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div style={{ fontWeight: 600 }}>Opportunities</div>
-                <button onClick={() => setOppDrawer(true)} style={addBtn}>+ Post</button>
+                <button onClick={() => { setOppForm({ ...emptyOpportunity }); setEditingOppId(null); setOppDrawer(true); }} style={addBtn}>+ Post</button>
               </div>
               {opportunities.length === 0 && <p style={{ opacity: 0.4, fontSize: 13 }}>No opportunities posted yet.</p>}
               {opportunities.map(o => (
@@ -528,9 +592,12 @@ export function HODView({ org, space, teams, signOut }: {
                   <div style={{ fontWeight: 600 }}>{o.title}</div>
                   <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>{o.type}{o.provider ? ` · ${o.provider}` : ''}</div>
                   {o.deadline && <div style={{ fontSize: 11, color: sub, marginTop: 2 }}>Deadline: {new Date(o.deadline).toLocaleDateString()}</div>}
+                  <div style={{ marginTop: 10 }}>
+                    <button onClick={() => openEditOpp(o)} style={ghostBtn}>Edit</button>
+                  </div>
                 </div>
               ))}
-              <Drawer open={oppDrawer} onClose={() => setOppDrawer(false)} title="Post an Opportunity" sub="TA opening, research role, stipend, scholarship">
+              <Drawer open={oppDrawer} onClose={() => { setOppDrawer(false); setEditingOppId(null); }} title={editingOppId ? 'Edit Opportunity' : 'Post an Opportunity'} sub="TA opening, research role, stipend, scholarship">
                 <label style={lbl}>Title *</label>
                 <input value={oppForm.title} onChange={e => setOppForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Research Assistantship" style={inp()} />
                 <label style={lbl}>Type</label>
@@ -549,10 +616,11 @@ export function HODView({ org, space, teams, signOut }: {
                 <input type="date" value={oppForm.deadline} onChange={e => setOppForm(f => ({ ...f, deadline: e.target.value }))} style={inp()} />
                 <label style={lbl}>How to apply</label>
                 <input value={oppForm.application_method} onChange={e => setOppForm(f => ({ ...f, application_method: e.target.value }))} placeholder="Link, email, or instructions" style={inp()} />
-                <label style={lbl}>Image URL (optional)</label>
-                <input value={oppForm.image_url} onChange={e => setOppForm(f => ({ ...f, image_url: e.target.value }))} placeholder="https://..." style={inp()} />
+                <label style={lbl}>Image</label>
+                <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleOppImg(e.target.files[0])} style={inp()} />
+                {uploadingImage && <div style={{ fontSize: 11, color: sub, marginBottom: 8 }}>Uploading…</div>}
                 <button onClick={addOpportunity} disabled={!oppForm.title.trim()} style={{ ...primaryBtn, opacity: !oppForm.title.trim() ? 0.5 : 1 }}>
-                  Post opportunity
+                  {editingOppId ? 'Save changes' : 'Post opportunity'}
                 </button>
               </Drawer>
             </>
@@ -563,7 +631,7 @@ export function HODView({ org, space, teams, signOut }: {
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div style={{ fontWeight: 600 }}>Activities</div>
-                <button onClick={() => setActDrawer(true)} style={addBtn}>+ Add</button>
+                <button onClick={() => { setActForm({ ...emptyActivity }); setEditingActId(null); setActDrawer(true); }} style={addBtn}>+ Add</button>
               </div>
               {activities.length === 0 && <p style={{ opacity: 0.4, fontSize: 13 }}>No activities yet.</p>}
               {activities.map(a => (
@@ -571,9 +639,12 @@ export function HODView({ org, space, teams, signOut }: {
                   <div style={{ fontWeight: 600 }}>{a.title}</div>
                   <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>{a.host}{a.category ? ` · ${a.category}` : ''}</div>
                   {a.start_time && <div style={{ fontSize: 11, color: sub, marginTop: 2 }}>{new Date(a.start_time).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>}
+                  <div style={{ marginTop: 10 }}>
+                    <button onClick={() => openEditAct(a)} style={ghostBtn}>Edit</button>
+                  </div>
                 </div>
               ))}
-              <Drawer open={actDrawer} onClose={() => setActDrawer(false)} title="Add an Activity" sub="Workshop, seminar, meetup, departmental event">
+              <Drawer open={actDrawer} onClose={() => { setActDrawer(false); setEditingActId(null); }} title={editingActId ? 'Edit Activity' : 'Add an Activity'} sub="Workshop, seminar, meetup, departmental event">
                 <label style={lbl}>Title *</label>
                 <input value={actForm.title} onChange={e => setActForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Research Methods Workshop" style={inp()} />
                 <label style={lbl}>Host</label>
@@ -593,8 +664,11 @@ export function HODView({ org, space, teams, signOut }: {
                 </select>
                 <label style={lbl}>Capacity</label>
                 <input value={actForm.capacity} onChange={e => setActForm(f => ({ ...f, capacity: e.target.value }))} style={inp()} />
+                <label style={lbl}>Image</label>
+                <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleActImg(e.target.files[0])} style={inp()} />
+                {uploadingImage && <div style={{ fontSize: 11, color: sub, marginBottom: 8 }}>Uploading…</div>}
                 <button onClick={addActivity} disabled={!actForm.title.trim()} style={{ ...primaryBtn, opacity: !actForm.title.trim() ? 0.5 : 1 }}>
-                  Add activity
+                  {editingActId ? 'Save changes' : 'Add activity'}
                 </button>
               </Drawer>
             </>
@@ -605,7 +679,7 @@ export function HODView({ org, space, teams, signOut }: {
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div style={{ fontWeight: 600 }}>Resources</div>
-                <button onClick={() => setResDrawer(true)} style={addBtn}>+ Add</button>
+                <button onClick={() => { setResForm({ ...emptyResource }); setEditingResId(null); setResDrawer(true); }} style={addBtn}>+ Add</button>
               </div>
               {resources.length === 0 && <p style={{ opacity: 0.4, fontSize: 13 }}>No resources yet.</p>}
               {resources.map(r => (
@@ -613,9 +687,12 @@ export function HODView({ org, space, teams, signOut }: {
                   <div style={{ fontWeight: 600 }}>{r.name}</div>
                   <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>{r.owner}</div>
                   {r.availability && <div style={{ fontSize: 11, color: sub, marginTop: 2 }}>{r.availability}</div>}
+                  <div style={{ marginTop: 10 }}>
+                    <button onClick={() => openEditRes(r)} style={ghostBtn}>Edit</button>
+                  </div>
                 </div>
               ))}
-              <Drawer open={resDrawer} onClose={() => setResDrawer(false)} title="Add a Resource" sub="Equipment, space, or material available to the department">
+              <Drawer open={resDrawer} onClose={() => { setResDrawer(false); setEditingResId(null); }} title={editingResId ? 'Edit Resource' : 'Add a Resource'} sub="Equipment, space, or material available to the department">
                 <label style={lbl}>Name *</label>
                 <input value={resForm.name} onChange={e => setResForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Projector, Microscope, Meeting Room" style={inp()} />
                 <label style={lbl}>Owner / department</label>
@@ -626,8 +703,11 @@ export function HODView({ org, space, teams, signOut }: {
                 <input value={resForm.availability} onChange={e => setResForm(f => ({ ...f, availability: e.target.value }))} placeholder="e.g. Mon–Fri 9am–5pm" style={inp()} />
                 <label style={lbl}>Capacity</label>
                 <input value={resForm.capacity} onChange={e => setResForm(f => ({ ...f, capacity: e.target.value }))} style={inp()} />
+                <label style={lbl}>Image</label>
+                <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleResImg(e.target.files[0])} style={inp()} />
+                {uploadingImage && <div style={{ fontSize: 11, color: sub, marginBottom: 8 }}>Uploading…</div>}
                 <button onClick={addResource} disabled={!resForm.name.trim()} style={{ ...primaryBtn, opacity: !resForm.name.trim() ? 0.5 : 1 }}>
-                  Add resource
+                  {editingResId ? 'Save changes' : 'Add resource'}
                 </button>
               </Drawer>
             </>
@@ -648,7 +728,7 @@ export function HODView({ org, space, teams, signOut }: {
               <div style={{ fontWeight: 700, fontSize: 16 }}>Notices</div>
               <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>Broadcast updates to students in this department</div>
             </div>
-            <button onClick={() => setAnnDrawer(true)} style={addBtn}>+ Post notice</button>
+            <button onClick={() => { setAnnForm({ ...emptyAnnouncement }); setEditingAnnId(null); setAnnDrawer(true); }} style={addBtn}>+ Post notice</button>
           </div>
           {announcements.length === 0 && <p style={{ opacity: 0.4, fontSize: 13 }}>No notices yet.</p>}
           {announcements.map(a => (
@@ -656,15 +736,18 @@ export function HODView({ org, space, teams, signOut }: {
               <div style={{ fontWeight: 600 }}>{a.title}</div>
               {a.body && <div style={{ fontSize: 13, color: sub, marginTop: 6, lineHeight: 1.6 }}>{a.body}</div>}
               <div style={{ fontSize: 11, color: sub, marginTop: 6, opacity: 0.5 }}>{new Date(a.created_at).toLocaleDateString()}</div>
+              <div style={{ marginTop: 8 }}>
+                <button onClick={() => openEditAnn(a)} style={ghostBtn}>Edit</button>
+              </div>
             </div>
           ))}
-          <Drawer open={annDrawer} onClose={() => setAnnDrawer(false)} title="Post a Notice" sub="Goes directly to students registered in this department">
+          <Drawer open={annDrawer} onClose={() => { setAnnDrawer(false); setEditingAnnId(null); }} title={editingAnnId ? 'Edit Notice' : 'Post a Notice'} sub="Goes directly to students registered in this department">
             <label style={lbl}>Title *</label>
             <input value={annForm.title} onChange={e => setAnnForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. CAT postponed to Friday" style={inp()} />
             <label style={lbl}>Body</label>
             <textarea value={annForm.body || ''} onChange={e => setAnnForm(f => ({ ...f, body: e.target.value }))} placeholder="Optional details…" style={{ ...inp(), minHeight: 80 }} />
             <button onClick={addAnnouncement} disabled={!annForm.title.trim()} style={{ ...primaryBtn, opacity: !annForm.title.trim() ? 0.5 : 1 }}>
-              Post notice
+              {editingAnnId ? 'Save changes' : 'Post notice'}
             </button>
           </Drawer>
         </>

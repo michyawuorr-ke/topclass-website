@@ -102,6 +102,13 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
   const [actForm, setActForm] = useState({ ...emptyActivity });
   const [resForm, setResForm] = useState({ ...emptyResource });
 
+  // Editing (null = creating new; set = editing that row)
+  const [editingDeptId, setEditingDeptId] = useState<string | null>(null);
+  const [editingBuildingId, setEditingBuildingId] = useState<string | null>(null);
+  const [editingOppId, setEditingOppId] = useState<string | null>(null);
+  const [editingActId, setEditingActId] = useState<string | null>(null);
+  const [editingResId, setEditingResId] = useState<string | null>(null);
+
   useEffect(() => { loadAll(); }, [space.id]);
 
   const loadAll = async () => {
@@ -161,13 +168,20 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
   // ── Departments ──
   const addDepartment = async () => {
     if (!deptForm.name.trim()) return;
-    const { error } = await supabase.from('teams').insert({
-      space_id: space.id, name: deptForm.name.trim(), type: 'department',
+    const payload = {
+      name: deptForm.name.trim(), type: 'department',
       description: deptForm.description || null, capacity: deptForm.capacity || null,
       primary_zone_id: deptForm.primary_zone_id || null,
-    });
+    };
+    const { error } = editingDeptId
+      ? await supabase.from('teams').update(payload).eq('id', editingDeptId)
+      : await supabase.from('teams').insert({ space_id: space.id, ...payload });
     if (error) { window.alert(error.message); return; }
-    setDeptForm({ ...emptyTeam }); setDeptDrawer(false); loadAll();
+    setDeptForm({ ...emptyTeam }); setDeptDrawer(false); setEditingDeptId(null); loadAll();
+  };
+  const openEditDept = (t: Team) => {
+    setDeptForm({ name: t.name, type: 'department', description: t.description || '', capacity: t.capacity || '', primary_zone_id: t.primary_zone_id || '' });
+    setEditingDeptId(t.id); setDeptDrawer(true);
   };
   const inviteHod = async () => {
     if (!deptDetail || !leadInviteEmail.trim()) return;
@@ -179,51 +193,91 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
   // ── Buildings ──
   const addBuilding = async () => {
     if (!buildingForm.name.trim()) return;
-    const { error } = await supabase.from('zones').insert({ space_id: space.id, name: buildingForm.name.trim(), building_tag: buildingForm.building_tag || null });
+    const payload = { name: buildingForm.name.trim(), building_tag: buildingForm.building_tag || null };
+    const { error } = editingBuildingId
+      ? await supabase.from('zones').update(payload).eq('id', editingBuildingId)
+      : await supabase.from('zones').insert({ space_id: space.id, ...payload });
     if (error) { window.alert(error.message); return; }
-    setBuildingForm({ name: '', building_tag: '' }); setBuildingDrawer(false); loadAll();
+    setBuildingForm({ name: '', building_tag: '' }); setBuildingDrawer(false); setEditingBuildingId(null); loadAll();
+  };
+  const openEditBuilding = (z: Zone) => {
+    setBuildingForm({ name: z.name, building_tag: z.building_tag || '' });
+    setEditingBuildingId(z.id); setBuildingDrawer(true);
   };
 
   // ── Publish (space-wide, not department-scoped) ──
   const addOpportunity = async () => {
     if (!oppForm.title.trim()) return;
-    const { error } = await supabase.from('opportunities').insert({
-      space_id: space.id, title: oppForm.title, type: oppForm.type,
+    const payload = {
+      title: oppForm.title, type: oppForm.type,
       provider: oppForm.provider || null, description: oppForm.description || null,
       eligibility: oppForm.eligibility || null, compensation: oppForm.compensation || null,
       deadline: oppForm.deadline ? new Date(oppForm.deadline).toISOString() : null,
       application_method: oppForm.application_method || null, zone_id: oppForm.zone_id || null,
       location: oppForm.location || null, status: oppForm.status, image_url: oppForm.image_url || null,
-    });
+    };
+    const { error } = editingOppId
+      ? await supabase.from('opportunities').update(payload).eq('id', editingOppId)
+      : await supabase.from('opportunities').insert({ space_id: space.id, ...payload });
     if (error) { window.alert(error.message); return; }
-    setOppForm({ ...emptyOpportunity }); setOppDrawer(false); loadAll();
+    setOppForm({ ...emptyOpportunity }); setOppDrawer(false); setEditingOppId(null); loadAll();
+  };
+  const openEditOpp = (o: Item) => {
+    setOppForm({
+      title: o.title || '', type: o.type || OPPORTUNITY_TYPES[0], provider: o.provider || '', description: o.description || '',
+      eligibility: o.eligibility || '', compensation: o.compensation || '',
+      deadline: o.deadline ? o.deadline.slice(0, 10) : '', application_method: o.application_method || '',
+      zone_id: o.zone_id || '', location: o.location || '', status: o.status || 'open', image_url: o.image_url || '',
+    });
+    setEditingOppId(o.id); setOppDrawer(true);
   };
   const handleOppImg = async (f: File) => { setUploadingImage(true); const u = await uploadImage(f); if (u) setOppForm(p => ({ ...p, image_url: u })); setUploadingImage(false); };
 
   const addActivity = async () => {
     if (!actForm.title.trim()) return;
-    const { error } = await supabase.from('activities').insert({
-      space_id: space.id, title: actForm.title, host: actForm.host || null, description: actForm.description || null,
+    const payload = {
+      title: actForm.title, host: actForm.host || null, description: actForm.description || null,
       category: actForm.category || null,
       start_time: actForm.start_time ? new Date(actForm.start_time).toISOString() : null,
       end_time: actForm.end_time ? new Date(actForm.end_time).toISOString() : null,
       zone_id: actForm.zone_id || null, capacity: actForm.capacity || null,
       registration_link: actForm.registration_link || null, image_url: actForm.image_url || null,
-    });
+    };
+    const { error } = editingActId
+      ? await supabase.from('activities').update(payload).eq('id', editingActId)
+      : await supabase.from('activities').insert({ space_id: space.id, ...payload });
     if (error) { window.alert(error.message); return; }
-    setActForm({ ...emptyActivity }); setActDrawer(false); loadAll();
+    setActForm({ ...emptyActivity }); setActDrawer(false); setEditingActId(null); loadAll();
+  };
+  const openEditAct = (a: Item) => {
+    setActForm({
+      title: a.title || '', host: a.host || '', description: a.description || '', category: a.category || '',
+      start_time: a.start_time ? a.start_time.slice(0, 16) : '', end_time: a.end_time ? a.end_time.slice(0, 16) : '',
+      zone_id: a.zone_id || '', capacity: a.capacity || '', registration_link: a.registration_link || '', image_url: a.image_url || '',
+    });
+    setEditingActId(a.id); setActDrawer(true);
   };
   const handleActImg = async (f: File) => { setUploadingImage(true); const u = await uploadImage(f); if (u) setActForm(p => ({ ...p, image_url: u })); setUploadingImage(false); };
 
   const addResource = async () => {
     if (!resForm.name.trim()) return;
-    const { error } = await supabase.from('resources').insert({
-      space_id: space.id, name: resForm.name, owner: resForm.owner || null, description: resForm.description || null,
+    const payload = {
+      name: resForm.name, owner: resForm.owner || null, description: resForm.description || null,
       availability: resForm.availability || null, capacity: resForm.capacity || null,
       zone_id: resForm.zone_id || null, image_url: resForm.image_url || null,
-    });
+    };
+    const { error } = editingResId
+      ? await supabase.from('resources').update(payload).eq('id', editingResId)
+      : await supabase.from('resources').insert({ space_id: space.id, ...payload });
     if (error) { window.alert(error.message); return; }
-    setResForm({ ...emptyResource }); setResDrawer(false); loadAll();
+    setResForm({ ...emptyResource }); setResDrawer(false); setEditingResId(null); loadAll();
+  };
+  const openEditRes = (r: Item) => {
+    setResForm({
+      name: r.name || '', owner: r.owner || '', description: r.description || '',
+      availability: r.availability || '', capacity: r.capacity || '', zone_id: r.zone_id || '', image_url: r.image_url || '',
+    });
+    setEditingResId(r.id); setResDrawer(true);
   };
   const handleResImg = async (f: File) => { setUploadingImage(true); const u = await uploadImage(f); if (u) setResForm(p => ({ ...p, image_url: u })); setUploadingImage(false); };
 
@@ -288,7 +342,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
               <div style={{ fontWeight: 700, fontSize: 16 }}>Departments</div>
               <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>Academic units — each gets a Head of Department</div>
             </div>
-            <button onClick={() => setDeptDrawer(true)} style={addBtn}>+ Add department</button>
+            <button onClick={() => { setDeptForm({ ...emptyTeam }); setEditingDeptId(null); setDeptDrawer(true); }} style={addBtn}>+ Add department</button>
           </div>
 
           {teams.length === 0 && <p style={{ opacity: 0.4, fontSize: 13 }}>No departments yet.</p>}
@@ -296,19 +350,24 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
             const leads = teamLeadsByTeam[t.id] || [];
             const building = zones.find(z => z.id === t.primary_zone_id);
             return (
-              <div key={t.id} onClick={() => setDeptDetail(t)} style={{ ...card, cursor: 'pointer' }}>
-                <div style={{ fontWeight: 600 }}>{t.name}</div>
-                <div style={{ fontSize: 12, color: sub, marginTop: 3 }}>
-                  {building ? building.name : 'No building assigned'}{t.capacity ? ` · ${t.capacity} capacity` : ''}
+              <div key={t.id} style={card}>
+                <div onClick={() => setDeptDetail(t)} style={{ cursor: 'pointer' }}>
+                  <div style={{ fontWeight: 600 }}>{t.name}</div>
+                  <div style={{ fontSize: 12, color: sub, marginTop: 3 }}>
+                    {building ? building.name : 'No building assigned'}{t.capacity ? ` · ${t.capacity} capacity` : ''}
+                  </div>
+                  <div style={{ fontSize: 11, color: sub, marginTop: 3 }}>
+                    HOD: {leads.length > 0 ? leads.map(l => l.invite_email).join(', ') : 'unassigned'}
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: sub, marginTop: 3 }}>
-                  HOD: {leads.length > 0 ? leads.map(l => l.invite_email).join(', ') : 'unassigned'}
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button onClick={() => openEditDept(t)} style={ghostBtn}>Edit</button>
                 </div>
               </div>
             );
           })}
 
-          <Drawer open={deptDrawer} onClose={() => setDeptDrawer(false)} title="Add a Department" sub="An academic unit — e.g. Department of Sociology">
+          <Drawer open={deptDrawer} onClose={() => { setDeptDrawer(false); setEditingDeptId(null); }} title={editingDeptId ? 'Edit Department' : 'Add a Department'} sub="An academic unit — e.g. Department of Sociology">
             <label style={lbl}>Name *</label>
             <input value={deptForm.name} onChange={e => setDeptForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Department of Sociology" style={inp()} />
             <label style={lbl}>Description</label>
@@ -322,7 +381,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
             </select>
             {buildings.length === 0 && <div style={{ fontSize: 11, color: sub, marginBottom: 12 }}>No buildings yet — add one in the Buildings tab first, or assign this later.</div>}
             <button onClick={addDepartment} disabled={!deptForm.name.trim()} style={{ ...primaryBtn, opacity: !deptForm.name.trim() ? 0.5 : 1 }}>
-              Create department
+              {editingDeptId ? 'Save changes' : 'Create department'}
             </button>
             <div style={{ fontSize: 11, color: sub }}>You'll invite the Head of Department after creating it — open the department to do that.</div>
           </Drawer>
@@ -365,7 +424,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
               <div style={{ fontWeight: 700, fontSize: 16 }}>Buildings</div>
               <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>Register the buildings/blocks on campus — departments reference these</div>
             </div>
-            <button onClick={() => setBuildingDrawer(true)} style={addBtn}>+ Add building</button>
+            <button onClick={() => { setBuildingForm({ name: '', building_tag: '' }); setEditingBuildingId(null); setBuildingDrawer(true); }} style={addBtn}>+ Add building</button>
           </div>
 
           {buildings.length === 0 && <p style={{ opacity: 0.4, fontSize: 13 }}>No buildings yet.</p>}
@@ -376,16 +435,19 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
               <div style={{ fontSize: 11, color: sub, marginTop: 4 }}>
                 {teams.filter(t => t.primary_zone_id === b.id).length} department{teams.filter(t => t.primary_zone_id === b.id).length === 1 ? '' : 's'}
               </div>
+              <div style={{ marginTop: 10 }}>
+                <button onClick={() => openEditBuilding(b)} style={ghostBtn}>Edit</button>
+              </div>
             </div>
           ))}
 
-          <Drawer open={buildingDrawer} onClose={() => setBuildingDrawer(false)} title="Add a Building" sub="A block, hall, or standalone building on campus">
+          <Drawer open={buildingDrawer} onClose={() => { setBuildingDrawer(false); setEditingBuildingId(null); }} title={editingBuildingId ? 'Edit Building' : 'Add a Building'} sub="A block, hall, or standalone building on campus">
             <label style={lbl}>Name *</label>
             <input value={buildingForm.name} onChange={e => setBuildingForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Chiromo Campus, Block C" style={inp()} />
             <label style={lbl}>Building tag</label>
             <input value={buildingForm.building_tag} onChange={e => setBuildingForm(f => ({ ...f, building_tag: e.target.value }))} placeholder="e.g. Main Campus" style={inp()} />
             <button onClick={addBuilding} disabled={!buildingForm.name.trim()} style={{ ...primaryBtn, opacity: !buildingForm.name.trim() ? 0.5 : 1 }}>
-              Add building
+              {editingBuildingId ? 'Save changes' : 'Add building'}
             </button>
           </Drawer>
         </>
@@ -408,7 +470,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div style={{ fontWeight: 600 }}>Opportunities</div>
-                <button onClick={() => setOppDrawer(true)} style={addBtn}>+ Post</button>
+                <button onClick={() => { setOppForm({ ...emptyOpportunity }); setEditingOppId(null); setOppDrawer(true); }} style={addBtn}>+ Post</button>
               </div>
               {opportunities.length === 0 && <p style={{ opacity: 0.4, fontSize: 13 }}>No space-wide opportunities posted yet.</p>}
               {opportunities.map(o => (
@@ -416,9 +478,12 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
                   <div style={{ fontWeight: 600 }}>{o.title}</div>
                   <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>{o.type}{o.provider ? ` · ${o.provider}` : ''}</div>
                   {o.deadline && <div style={{ fontSize: 11, color: sub, marginTop: 2 }}>Deadline: {new Date(o.deadline).toLocaleDateString()}</div>}
+                  <div style={{ marginTop: 10 }}>
+                    <button onClick={() => openEditOpp(o)} style={ghostBtn}>Edit</button>
+                  </div>
                 </div>
               ))}
-              <Drawer open={oppDrawer} onClose={() => setOppDrawer(false)} title="Post an Opportunity" sub="Space-wide — visible regardless of department">
+              <Drawer open={oppDrawer} onClose={() => { setOppDrawer(false); setEditingOppId(null); }} title={editingOppId ? 'Edit Opportunity' : 'Post an Opportunity'} sub="Space-wide — visible regardless of department">
                 <label style={lbl}>Title *</label>
                 <input value={oppForm.title} onChange={e => setOppForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. University-wide Innovation Grant" style={inp()} />
                 <label style={lbl}>Type</label>
@@ -446,7 +511,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
                 <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleOppImg(e.target.files[0])} style={inp()} />
                 {uploadingImage && <div style={{ fontSize: 11, color: sub, marginBottom: 8 }}>Uploading…</div>}
                 <button onClick={addOpportunity} disabled={!oppForm.title.trim()} style={{ ...primaryBtn, opacity: !oppForm.title.trim() ? 0.5 : 1 }}>
-                  Post opportunity
+                  {editingOppId ? 'Save changes' : 'Post opportunity'}
                 </button>
               </Drawer>
             </>
@@ -456,7 +521,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div style={{ fontWeight: 600 }}>Activities</div>
-                <button onClick={() => setActDrawer(true)} style={addBtn}>+ Add</button>
+                <button onClick={() => { setActForm({ ...emptyActivity }); setEditingActId(null); setActDrawer(true); }} style={addBtn}>+ Add</button>
               </div>
               {activities.length === 0 && <p style={{ opacity: 0.4, fontSize: 13 }}>No space-wide activities yet.</p>}
               {activities.map(a => (
@@ -464,9 +529,12 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
                   <div style={{ fontWeight: 600 }}>{a.title}</div>
                   <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>{a.host}{a.category ? ` · ${a.category}` : ''}</div>
                   {a.start_time && <div style={{ fontSize: 11, color: sub, marginTop: 2 }}>{new Date(a.start_time).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>}
+                  <div style={{ marginTop: 10 }}>
+                    <button onClick={() => openEditAct(a)} style={ghostBtn}>Edit</button>
+                  </div>
                 </div>
               ))}
-              <Drawer open={actDrawer} onClose={() => setActDrawer(false)} title="Add an Activity" sub="Space-wide — visible regardless of department">
+              <Drawer open={actDrawer} onClose={() => { setActDrawer(false); setEditingActId(null); }} title={editingActId ? 'Edit Activity' : 'Add an Activity'} sub="Space-wide — visible regardless of department">
                 <label style={lbl}>Title *</label>
                 <input value={actForm.title} onChange={e => setActForm(f => ({ ...f, title: e.target.value }))} style={inp()} />
                 <label style={lbl}>Host</label>
@@ -490,7 +558,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
                 <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleActImg(e.target.files[0])} style={inp()} />
                 {uploadingImage && <div style={{ fontSize: 11, color: sub, marginBottom: 8 }}>Uploading…</div>}
                 <button onClick={addActivity} disabled={!actForm.title.trim()} style={{ ...primaryBtn, opacity: !actForm.title.trim() ? 0.5 : 1 }}>
-                  Add activity
+                  {editingActId ? 'Save changes' : 'Add activity'}
                 </button>
               </Drawer>
             </>
@@ -500,7 +568,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div style={{ fontWeight: 600 }}>Resources</div>
-                <button onClick={() => setResDrawer(true)} style={addBtn}>+ Add</button>
+                <button onClick={() => { setResForm({ ...emptyResource }); setEditingResId(null); setResDrawer(true); }} style={addBtn}>+ Add</button>
               </div>
               {resources.length === 0 && <p style={{ opacity: 0.4, fontSize: 13 }}>No space-wide resources yet.</p>}
               {resources.map(r => (
@@ -508,9 +576,12 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
                   <div style={{ fontWeight: 600 }}>{r.name}</div>
                   <div style={{ fontSize: 12, color: sub, marginTop: 2 }}>{r.owner}</div>
                   {r.availability && <div style={{ fontSize: 11, color: sub, marginTop: 2 }}>{r.availability}</div>}
+                  <div style={{ marginTop: 10 }}>
+                    <button onClick={() => openEditRes(r)} style={ghostBtn}>Edit</button>
+                  </div>
                 </div>
               ))}
-              <Drawer open={resDrawer} onClose={() => setResDrawer(false)} title="Add a Resource" sub="Space-wide — visible regardless of department">
+              <Drawer open={resDrawer} onClose={() => { setResDrawer(false); setEditingResId(null); }} title={editingResId ? 'Edit Resource' : 'Add a Resource'} sub="Space-wide — visible regardless of department">
                 <label style={lbl}>Name *</label>
                 <input value={resForm.name} onChange={e => setResForm(f => ({ ...f, name: e.target.value }))} style={inp()} />
                 <label style={lbl}>Owner</label>
@@ -525,7 +596,7 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
                 <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleResImg(e.target.files[0])} style={inp()} />
                 {uploadingImage && <div style={{ fontSize: 11, color: sub, marginBottom: 8 }}>Uploading…</div>}
                 <button onClick={addResource} disabled={!resForm.name.trim()} style={{ ...primaryBtn, opacity: !resForm.name.trim() ? 0.5 : 1 }}>
-                  Add resource
+                  {editingResId ? 'Save changes' : 'Add resource'}
                 </button>
               </Drawer>
             </>

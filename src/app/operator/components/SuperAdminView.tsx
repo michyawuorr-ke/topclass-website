@@ -108,6 +108,23 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
     setAddAdminEmail(''); setAddAdminForSpace(null); loadAll();
   };
 
+  const [editSpaceFor, setEditSpaceFor] = useState<string | null>(null);
+  const [editSpaceForm, setEditSpaceForm] = useState({ name: '', space_code: '', domain_restriction: '' });
+  const openEditSpace = (s: Space) => {
+    setEditSpaceForm({ name: s.name, space_code: s.space_code || '', domain_restriction: s.domain_restriction || '' });
+    setEditSpaceFor(s.id); setAddAdminForSpace(null);
+  };
+  const saveSpaceEdit = async (id: string) => {
+    if (!editSpaceForm.name.trim()) return;
+    const { error } = await supabase.from('spaces').update({
+      name: editSpaceForm.name.trim(),
+      space_code: editSpaceForm.space_code.trim() || null,
+      domain_restriction: editSpaceForm.domain_restriction.trim().toLowerCase() || null,
+    }).eq('id', id);
+    if (error) { window.alert(error.message); return; }
+    setEditSpaceFor(null); loadAll();
+  };
+
   const archiveSpace = async (id: string) => {
     if (!window.confirm('Archive this space? Participants will no longer see it.')) return;
     await supabase.from('spaces').delete().eq('id', id);
@@ -192,33 +209,55 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
               return (
                 <div key={s.id} style={card}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{s.name}</div>
-                      <div style={{ fontSize: 11, opacity: 0.4, marginTop: 3 }}>
-                        {s.type}{s.space_code ? ` · ${s.space_code}` : ''}{s.domain_restriction ? ` · @${s.domain_restriction}` : ''}
-                      </div>
-                      <div style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>
-                        Lead: {leads.length > 0 ? leads.map(l => l.invite_email).join(', ') : 'unassigned'}
-                        {' '}
-                        <button onClick={() => { setAddAdminForSpace(addAdminForSpace === s.id ? null : s.id); setAddAdminEmail(''); }} style={{ background: 'none', border: 'none', color: '#E26D34', fontSize: 11, cursor: 'pointer', padding: 0 }}>
-                          {addAdminForSpace === s.id ? 'cancel' : '+ add admin'}
-                        </button>
-                      </div>
-                      {addAdminForSpace === s.id && (
-                        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                          <input value={addAdminEmail} onChange={e => setAddAdminEmail(e.target.value)} placeholder="admin@school.edu" style={{ ...inp(), marginBottom: 0, flex: 1, fontSize: 12, padding: '7px 9px' }} />
-                          <button onClick={() => addSpaceAdmin(s.id)} style={{ ...ghostBtn, borderColor: '#E26D34', color: '#E26D34' }}>Add</button>
-                        </div>
+                    <div style={{ flex: 1 }}>
+                      {editSpaceFor === s.id ? (
+                        <>
+                          <label style={lbl}>Name</label>
+                          <input value={editSpaceForm.name} onChange={e => setEditSpaceForm(f => ({ ...f, name: e.target.value }))} style={{ ...inp(), fontSize: 13, padding: '7px 9px' }} />
+                          <label style={lbl}>Space code</label>
+                          <input value={editSpaceForm.space_code} onChange={e => setEditSpaceForm(f => ({ ...f, space_code: e.target.value }))} style={{ ...inp(), fontSize: 13, padding: '7px 9px' }} />
+                          <label style={lbl}>Domain binding</label>
+                          <input value={editSpaceForm.domain_restriction} onChange={e => setEditSpaceForm(f => ({ ...f, domain_restriction: e.target.value }))} style={{ ...inp(), fontSize: 13, padding: '7px 9px', marginBottom: 0 }} />
+                          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                            <button onClick={() => saveSpaceEdit(s.id)} style={{ ...ghostBtn, borderColor: '#E26D34', color: '#E26D34' }}>Save</button>
+                            <button onClick={() => setEditSpaceFor(null)} style={ghostBtn}>Cancel</button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ fontWeight: 600 }}>{s.name}</div>
+                          <div style={{ fontSize: 11, opacity: 0.4, marginTop: 3 }}>
+                            {s.type}{s.space_code ? ` · ${s.space_code}` : ''}{s.domain_restriction ? ` · @${s.domain_restriction}` : ''}
+                          </div>
+                          <div style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>
+                            Lead: {leads.length > 0 ? leads.map(l => l.invite_email).join(', ') : 'unassigned'}
+                            {' '}
+                            <button onClick={() => { setAddAdminForSpace(addAdminForSpace === s.id ? null : s.id); setAddAdminEmail(''); }} style={{ background: 'none', border: 'none', color: '#E26D34', fontSize: 11, cursor: 'pointer', padding: 0 }}>
+                              {addAdminForSpace === s.id ? 'cancel' : '+ add admin'}
+                            </button>
+                          </div>
+                          {addAdminForSpace === s.id && (
+                            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                              <input value={addAdminEmail} onChange={e => setAddAdminEmail(e.target.value)} placeholder="admin@school.edu" style={{ ...inp(), marginBottom: 0, flex: 1, fontSize: 12, padding: '7px 9px' }} />
+                              <button onClick={() => addSpaceAdmin(s.id)} style={{ ...ghostBtn, borderColor: '#E26D34', color: '#E26D34' }}>Add</button>
+                            </div>
+                          )}
+                          <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>
+                            {zoneCounts[s.id] || 0} active zone{(zoneCounts[s.id] || 0) === 1 ? '' : 's'} ·{' '}
+                            <span style={{ color: org.approved ? '#1D9E75' : '#D4AF37' }}>{org.approved ? 'Live' : 'Pending approval'}</span>
+                          </div>
+                          <div style={{ fontSize: 11, opacity: 0.35, marginTop: 2 }}>
+                            /?space={s.id}
+                          </div>
+                        </>
                       )}
-                      <div style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>
-                        {zoneCounts[s.id] || 0} active zone{(zoneCounts[s.id] || 0) === 1 ? '' : 's'} ·{' '}
-                        <span style={{ color: org.approved ? '#1D9E75' : '#D4AF37' }}>{org.approved ? 'Live' : 'Pending approval'}</span>
-                      </div>
-                      <div style={{ fontSize: 11, opacity: 0.35, marginTop: 2 }}>
-                        /?space={s.id}
-                      </div>
                     </div>
-                    <button onClick={() => archiveSpace(s.id)} style={ghostBtn}>Archive</button>
+                    {editSpaceFor !== s.id && (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => openEditSpace(s)} style={ghostBtn}>Edit</button>
+                        <button onClick={() => archiveSpace(s.id)} style={ghostBtn}>Archive</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
