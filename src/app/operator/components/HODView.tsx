@@ -7,6 +7,7 @@ import {
   OPPORTUNITY_TYPES, zonePath, roomQrPayload, qrImageUrl,
 } from '../types';
 import { OperatorShell } from './OperatorShell';
+import { OperatorIcons } from './icons';
 import { StatGrid, Stat } from './StatGrid';
 import { ApplicationsPanel } from './ApplicationsPanel';
 
@@ -346,12 +347,12 @@ export function HODView({ org, space, teams, signOut }: {
   const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   const nav = [
-    { id: 'home',          label: 'Home',          icon: '◈' },
-    { id: 'rooms',         label: 'Rooms',         icon: '🚪', badge: rooms.length },
-    { id: 'schedules',     label: 'Schedules',     icon: '🗓' },
-    { id: 'publish',       label: 'Publish',       icon: '✦' },
-    { id: 'applications',  label: 'Applications',  icon: '📋', badge: pendingApps },
-    { id: 'announcements', label: 'Notices',       icon: '📢' },
+    { id: 'home',          label: 'Home',          icon: OperatorIcons.home },
+    { id: 'rooms',         label: 'Rooms',         icon: OperatorIcons.rooms, badge: rooms.length },
+    { id: 'schedules',     label: 'Schedules',     icon: OperatorIcons.schedules },
+    { id: 'publish',       label: 'Publish',       icon: OperatorIcons.publish },
+    { id: 'applications',  label: 'Applications',  icon: OperatorIcons.applications, badge: pendingApps },
+    { id: 'announcements', label: 'Notices',       icon: OperatorIcons.notices },
   ];
 
   return (

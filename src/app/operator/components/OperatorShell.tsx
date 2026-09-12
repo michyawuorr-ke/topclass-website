@@ -1,6 +1,6 @@
 import React from 'react';
 
-interface NavItem { id: string; label: string; icon: string; badge?: number; }
+interface NavItem { id: string; label: string; icon: (active: boolean) => React.ReactNode; badge?: number; }
 
 interface Props {
   orgName: string;
@@ -53,7 +53,7 @@ export function OperatorShell({ orgName, spaceName, roleBadge, roleColor, nav, a
               background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
               color: active ? '#E26D34' : 'rgba(245,239,227,0.4)',
             }}>
-              <span style={{ fontSize: 19, lineHeight: 1 }}>{item.icon}</span>
+              <span style={{ lineHeight: 1, display: 'flex' }}>{item.icon(active)}</span>
               <span style={{ fontSize: 10, fontWeight: active ? 700 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
                 {item.label}
               </span>

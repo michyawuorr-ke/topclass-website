@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Org, Space, Zone, Item, Application, emptyOpportunity, emptyResource, emptyActivity, zonePath } from '../types';
 import { OperatorShell } from './OperatorShell';
+import { OperatorIcons } from './icons';
 import { StatGrid, Stat } from './StatGrid';
 import { SectionHeader } from './SectionHeader';
 import { OpportunitiesPanel } from './OpportunitiesPanel';
@@ -105,11 +106,11 @@ export function ZoneOperatorView({ org, space, zones, signOut }: { org: Org | nu
 
   const activeZone = zones.find(z => z.id === activeZoneId);
   const nav = [
-    { id: 'home',          label: 'Home',          icon: '◈' },
-    { id: 'opportunities', label: 'Opportunities', icon: '✦' },
-    { id: 'applications',  label: 'Applications',  icon: '📋', badge: pendingApps },
-    { id: 'resources',     label: 'Resources',     icon: '📦' },
-    { id: 'activities',    label: 'Activities',    icon: '📅' },
+    { id: 'home',          label: 'Home',          icon: OperatorIcons.home },
+    { id: 'opportunities', label: 'Opportunities', icon: OperatorIcons.opportunities },
+    { id: 'applications',  label: 'Applications',  icon: OperatorIcons.applications, badge: pendingApps },
+    { id: 'resources',     label: 'Resources',     icon: OperatorIcons.resources },
+    { id: 'activities',    label: 'Activities',    icon: OperatorIcons.activities },
   ];
 
   return (
@@ -182,3 +183,4 @@ export function ZoneOperatorView({ org, space, zones, signOut }: { org: Org | nu
     </OperatorShell>
   );
 }
+

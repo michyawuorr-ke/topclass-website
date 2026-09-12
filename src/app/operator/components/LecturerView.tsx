@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { OperatorShell } from './OperatorShell';
+import { OperatorIcons } from './icons';
 import { StatGrid, Stat } from './StatGrid';
 
 type Tab = 'home' | 'classes' | 'materials' | 'publish' | 'attendance';
@@ -260,11 +261,11 @@ export function LecturerView({ userId, signOut }: { userId: string; signOut: () 
   const activeSession = activeScheduleId ? sessions[activeScheduleId] : null;
 
   const nav = [
-    { id: 'home',       label: 'Home',       icon: '◈' },
-    { id: 'classes',    label: 'My Units',   icon: '📚' },
-    { id: 'attendance', label: 'Attendance', icon: '✓', badge: Object.values(sessions).filter(Boolean).length },
-    { id: 'materials',  label: 'Materials',  icon: '📄' },
-    { id: 'publish',    label: 'Publish',    icon: '✦' },
+    { id: 'home',       label: 'Home',       icon: OperatorIcons.home },
+    { id: 'classes',    label: 'My Units',   icon: OperatorIcons.classes },
+    { id: 'attendance', label: 'Attendance', icon: OperatorIcons.attendance, badge: Object.values(sessions).filter(Boolean).length },
+    { id: 'materials',  label: 'Materials',  icon: OperatorIcons.materials },
+    { id: 'publish',    label: 'Publish',    icon: OperatorIcons.publish },
   ];
 
   return (

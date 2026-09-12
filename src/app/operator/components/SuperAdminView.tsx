@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Org, Space, Member, SpaceAdmin, inputStyle, labelStyle } from '../types';
 import { OperatorShell } from './OperatorShell';
+import { OperatorIcons } from './icons';
 import { StatGrid, Stat } from './StatGrid';
 import { SectionHeader } from './SectionHeader';
 
@@ -151,10 +152,10 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
   };
 
   const nav = [
-    { id: 'overview', label: 'Overview', icon: '◈', badge: pendingApps },
-    { id: 'spaces',   label: 'Spaces',   icon: '⬡' },
-    { id: 'team',     label: 'Team',     icon: '👥' },
-    { id: 'sso',      label: 'SSO / Domain', icon: '🔐' },
+    { id: 'overview', label: 'Overview', icon: OperatorIcons.home, badge: pendingApps },
+    { id: 'spaces',   label: 'Spaces',   icon: OperatorIcons.spaces },
+    { id: 'team',     label: 'Team',     icon: OperatorIcons.team },
+    { id: 'sso',      label: 'SSO / Domain', icon: OperatorIcons.sso },
   ];
 
   return (

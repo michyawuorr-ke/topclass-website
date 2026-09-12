@@ -7,6 +7,7 @@ import {
   OPPORTUNITY_TYPES,
 } from '../types';
 import { OperatorShell } from './OperatorShell';
+import { OperatorIcons } from './icons';
 import { StatGrid, Stat } from './StatGrid';
 import { ApplicationsPanel } from './ApplicationsPanel';
 
@@ -288,11 +289,11 @@ export function SpaceAdminView({ org, space, signOut }: { org: Org | null; space
   };
 
   const nav = [
-    { id: 'home',         label: 'Home',         icon: '◈' },
-    { id: 'departments',  label: 'Departments',  icon: '🎓', badge: teams.length },
-    { id: 'buildings',    label: 'Buildings',    icon: '🏛', badge: buildings.length },
-    { id: 'publish',      label: 'Publish',      icon: '✦' },
-    { id: 'applications', label: 'Applications', icon: '📋', badge: pendingApps },
+    { id: 'home',         label: 'Home',         icon: OperatorIcons.home },
+    { id: 'departments',  label: 'Departments',  icon: OperatorIcons.departments, badge: teams.length },
+    { id: 'buildings',    label: 'Buildings',    icon: OperatorIcons.buildings, badge: buildings.length },
+    { id: 'publish',      label: 'Publish',      icon: OperatorIcons.publish },
+    { id: 'applications', label: 'Applications', icon: OperatorIcons.applications, badge: pendingApps },
   ];
 
   return (
