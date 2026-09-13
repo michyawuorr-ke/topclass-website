@@ -159,7 +159,7 @@ export function SuperAdminView({ org, signOut }: { org: Org; signOut: () => void
   ];
 
   return (
-    <OperatorShell orgName={org.name} roleBadge="Super admin" roleColor="#D4AF37" nav={nav} activeTab={tab} onTab={t => setTab(t as Tab)} onSignOut={signOut}>
+    <OperatorShell orgName={org.name} roleBadge="Super admin" roleColor="#D4AF37" nav={nav} activeTab={tab} onTab={t => setTab(t as Tab)} onSignOut={signOut} showProfile={false}>
 
       {/* ── Overview ── */}
       {tab === 'overview' && (
